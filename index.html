@@ -4,17 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stores KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
-<!-- PERF FIX (Sep 2026): both libraries used to load with no async/defer,
-     blocking HTML parsing/rendering (incl. the login screen) until both
-     downloaded - xlsx.full.min.js is only needed later, for the Reports
-     Excel-export button. defer lets the page parse/paint immediately and
-     runs these in original order right before DOMContentLoaded, so every
-     existing DOMContentLoaded handler in this file (which is where
-     Chart.js/XLSX actually get used) still sees them fully loaded. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" defer></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%3C/text%3E%3C/svg%3E">
+<!-- PERF (Sep 2026, item 6): xlsx (~1 MB) and Chart.js are NO LONGER downloaded on
+     page load. They are fetched only when actually needed - Chart.js the
+     moment the first chart is drawn (enterApp() starts it in the background
+     right after login), xlsx only when someone clicks an Excel export - see
+     ensureChartJs()/ensureXlsx() in the script below. The login screen now
+     loads only this HTML. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Non-render-blocking font stylesheet (display=swap): page paints with the fallback font first, Tamil font swaps in when ready. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&display=swap"></noscript>
 <style>
 :root{
   --coffee-900:#3B2415; --coffee-700:#6F4E37; --coffee-500:#9C6B45;
@@ -287,11 +288,11 @@ main.content{
     <h1 data-i18n="appTitle">Stores KPI &amp; Appraisal</h1>
     <p class="sub" data-i18n="companyLine">Sri Narasu's Coffee Company Pvt Ltd &mdash; Stores Department</p>
     <div class="field">
-      <label data-i18n="userId">User ID</label>
+      <label for="loginUserId" data-i18n="userId">User ID</label>
       <input id="loginUserId" type="text" autocomplete="username" placeholder="e.g. sakthivel">
     </div>
     <div class="field">
-      <label data-i18n="password">Password</label>
+      <label for="loginPassword" data-i18n="password">Password</label>
       <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••">
     </div>
     <button class="btn-primary" id="loginBtn" onclick="doLogin()" data-i18n="logIn">Log In</button>
@@ -333,9 +334,9 @@ main.content{
       <h3 data-i18n="changePassword">Change Password</h3>
       <p id="cpForcedNote" style="display:none;color:var(--coffee-700);font-size:13px" data-i18n="mustChangePasswordNote">For security, please set a new password before continuing.</p>
       <div class="form-row">
-        <div><label data-i18n="currentPassword">Current Password</label><input type="password" id="cpOldPassword"></div>
-        <div><label data-i18n="newPassword">New Password (min 6 characters)</label><input type="password" id="cpNewPassword"></div>
-        <div><label data-i18n="confirmNewPassword">Confirm New Password</label><input type="password" id="cpConfirmPassword"></div>
+        <div><label for="cpOldPassword" data-i18n="currentPassword">Current Password</label><input type="password" id="cpOldPassword"></div>
+        <div><label for="cpNewPassword" data-i18n="newPassword">New Password (min 8 characters, letters + numbers)</label><input type="password" id="cpNewPassword"></div>
+        <div><label for="cpConfirmPassword" data-i18n="confirmNewPassword">Confirm New Password</label><input type="password" id="cpConfirmPassword"></div>
       </div>
       <p id="cpError" style="color:#b00020;font-size:13px"></p>
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -401,18 +402,18 @@ main.content{
       <p id="etrSubtitle" style="font-size:13px;color:var(--coffee-700);margin-bottom:10px"></p>
       <input type="hidden" id="etrRecordId">
       <div class="form-row">
-        <div><label data-i18n="trainer">Trainer</label><input type="text" id="etrTrainer"></div>
-        <div><label data-i18n="mode">Mode</label><select id="etrMode">
+        <div><label for="etrTrainer" data-i18n="trainer">Trainer</label><input type="text" id="etrTrainer"></div>
+        <div><label for="etrMode" data-i18n="mode">Mode</label><select id="etrMode">
           <option value="Classroom">Classroom</option><option value="Online">Online</option><option value="On-the-job">On-the-job</option>
         </select></div>
-        <div><label data-i18n="attendance">Attendance</label><select id="etrAttendance">
+        <div><label for="etrAttendance" data-i18n="attendance">Attendance</label><select id="etrAttendance">
           <option value="Present">Present</option><option value="Absent">Absent</option>
         </select></div>
-        <div><label data-i18n="assessmentScore">Assessment Score (0-100)</label><input type="number" id="etrAssessment" min="0" max="100" step="1"></div>
-        <div><label data-i18n="completionStatus">Completion Status</label><select id="etrCompletion">
+        <div><label for="etrAssessment" data-i18n="assessmentScore">Assessment Score (0-100)</label><input type="number" id="etrAssessment" min="0" max="100" step="1"></div>
+        <div><label for="etrCompletion" data-i18n="completionStatus">Completion Status</label><select id="etrCompletion">
           <option value="Completed">Completed</option><option value="Not Completed">Not Completed</option><option value="Failed">Failed</option>
         </select></div>
-        <div style="grid-column:1/-1"><label data-i18n="certificateEvidence">Certificate / Evidence Link (optional)</label><input type="text" id="etrCertificate"></div>
+        <div style="grid-column:1/-1"><label for="etrCertificate" data-i18n="certificateEvidence">Certificate / Evidence Link (optional)</label><input type="text" id="etrCertificate"></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
         <button class="btn btn-outline" onclick="document.getElementById('editTrainingRecordModal').style.display='none'" data-i18n="cancel">Cancel</button>
@@ -450,7 +451,7 @@ main.content{
         <p class="view-sub" data-i18n="dashSub">Current month performance snapshot</p>
 
         <div class="form-row">
-          <div><label data-i18n="dashDateRangeLabel">Date Range</label>
+          <div><label for="dashRangeSelect" data-i18n="dashDateRangeLabel">Date Range</label>
             <select id="dashRangeSelect" onchange="onDashboardRangeChange()">
               <option value="thisMonth" data-i18n="dashRangeThisMonth">This Month</option>
               <option value="last60" data-i18n="dashRangeLast60">Last 60 Days</option>
@@ -487,13 +488,13 @@ main.content{
         <div class="card">
           <div style="font-size:12.5px;color:var(--coffee-600);margin-bottom:10px;" id="regLoggedByLine"></div>
           <div class="form-row">
-            <div><label data-i18n="date">Date</label><input type="date" id="regDate"></div>
-            <div><label data-i18n="activity">Activity</label><select id="regActivity" onchange="renderWorkflowChecklist()"><option value="" data-i18n="select">Select</option></select></div>
+            <div><label for="regDate" data-i18n="date">Date</label><input type="date" id="regDate"></div>
+            <div><label for="regActivity" data-i18n="activity">Activity</label><select id="regActivity" onchange="renderWorkflowChecklist()"><option value="" data-i18n="select">Select</option></select></div>
           </div>
 
           <div id="wfChecklistWrap" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;">
-              <label style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;" data-i18n="selectWorkflows">Select Workflows</label>
+              <div style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;" data-i18n="selectWorkflows">Select Workflows</div>
               <div>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(true)" data-i18n="selectAll">Select All</button>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(false)" data-i18n="clearAll">Clear All</button>
@@ -501,7 +502,7 @@ main.content{
             </div>
             <div id="wfChecklist"></div>
             <div class="form-row" style="margin-top:12px;">
-              <div><label data-i18n="remarksOpt">Remarks (optional)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
+              <div><label for="regRemarks" data-i18n="remarksOpt">Remarks (optional)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
             </div>
           </div>
 
@@ -539,10 +540,10 @@ main.content{
         <p class="view-sub" data-i18n="targetsSub">Set the monthly target for each Activity → Workflow. Manager only.</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="month">Month</label><input type="month" id="mtMonth"></div>
-            <div><label data-i18n="activity">Activity</label><select id="mtActivity" onchange="mtPopulateWorkflows()"><option value="" data-i18n="select">Select</option></select></div>
-            <div><label data-i18n="workflow">Workflow</label><select id="mtWorkflow" onchange="mtShowDefaultTargetHint()"><option value="" data-i18n="selectActivityFirst">Select Activity first</option></select></div>
-            <div><label data-i18n="monthlyTarget">Monthly Target</label><input type="number" id="mtTarget" min="0" step="1" value="0"></div>
+            <div><label for="mtMonth" data-i18n="month">Month</label><input type="month" id="mtMonth"></div>
+            <div><label for="mtActivity" data-i18n="activity">Activity</label><select id="mtActivity" onchange="mtPopulateWorkflows()"><option value="" data-i18n="select">Select</option></select></div>
+            <div><label for="mtWorkflow" data-i18n="workflow">Workflow</label><select id="mtWorkflow" onchange="mtShowDefaultTargetHint()"><option value="" data-i18n="selectActivityFirst">Select Activity first</option></select></div>
+            <div><label for="mtTarget" data-i18n="monthlyTarget">Monthly Target</label><input type="number" id="mtTarget" min="0" step="1" value="0"></div>
           </div>
           <p class="li-target-info" id="mtDefaultHint"></p>
           <button class="btn btn-brown" onclick="saveMonthlyTarget()" data-i18n="saveTarget">Save Target</button>
@@ -561,7 +562,7 @@ main.content{
         <p class="view-sub" data-i18n="targetStatusSub">Progress of each workflow against its monthly target (Approved entries only)</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="month">Month</label><input type="month" id="tsMonth" onchange="loadTargetStatus()"></div>
+            <div><label for="tsMonth" data-i18n="month">Month</label><input type="month" id="tsMonth" onchange="loadTargetStatus()"></div>
           </div>
         </div>
         <div class="grid grid-4" id="targetDashStats"></div>
@@ -597,14 +598,14 @@ main.content{
         <div class="card" id="editWfFormCard" style="display:none;">
           <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)"><span data-i18n="editing">Editing</span>: <span id="editWfName"></span></h3>
           <div class="form-row">
-            <div><label data-i18n="perEntryTarget">Per-Entry Target</label><input type="number" id="editWfTarget"></div>
-            <div><label data-i18n="weightagePct">Weightage %</label><input type="number" step="0.01" id="editWfWeightage" oninput="document.getElementById('editWfMaxScore').value=this.value"></div>
-            <div><label data-i18n="maxScoreReadonly">Max Score (read-only — always equals Weightage %)</label><input type="number" step="0.01" id="editWfMaxScore" disabled></div>
-            <div><label data-i18n="expectedOutput">Expected Output (description only — not used as the numeric Target)</label><input type="text" id="editWfExpectedOutput"></div>
-            <div><label data-i18n="status">Status</label>
+            <div><label for="editWfTarget" data-i18n="perEntryTarget">Per-Entry Target</label><input type="number" id="editWfTarget"></div>
+            <div><label for="editWfWeightage" data-i18n="weightagePct">Weightage %</label><input type="number" step="0.01" id="editWfWeightage" oninput="document.getElementById('editWfMaxScore').value=this.value"></div>
+            <div><label for="editWfMaxScore" data-i18n="maxScoreReadonly">Max Score (read-only — always equals Weightage %)</label><input type="number" step="0.01" id="editWfMaxScore" disabled></div>
+            <div><label for="editWfExpectedOutput" data-i18n="expectedOutput">Expected Output (description only — not used as the numeric Target)</label><input type="text" id="editWfExpectedOutput"></div>
+            <div><label for="editWfStatus" data-i18n="status">Status</label>
               <select id="editWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
             </div>
-            <div><label data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. SEC01,SEC02 or All"></div>
+            <div><label for="editWfSections" data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. SEC01,SEC02 or All"></div>
           </div>
           <button class="btn btn-brown" onclick="saveWorkflowEdit()" data-i18n="saveChanges">Save Changes</button>
           <button class="btn btn-outline" onclick="closeWorkflowEdit()" data-i18n="cancelBtn">Cancel</button>
@@ -617,13 +618,13 @@ main.content{
         <p class="view-sub" data-i18n="attendanceSub">Mark daily attendance</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="date">Date</label><input type="date" id="attDate"></div>
-            <div><label data-i18n="status">Status</label>
+            <div><label for="attDate" data-i18n="date">Date</label><input type="date" id="attDate"></div>
+            <div><label for="attStatus" data-i18n="status">Status</label>
               <select id="attStatus"><option value="Present" data-i18n="present">Present</option><option value="Absent" data-i18n="absent">Absent</option><option value="Half Day" data-i18n="halfDay">Half Day</option><option value="Permission" data-i18n="permission">Permission</option><option value="Late" data-i18n="lateStatus">Late</option></select>
             </div>
-            <div><label data-i18n="permHours">Permission Hours</label><input type="number" id="attPermHrs" min="0" step="0.5" value="0"></div>
+            <div><label for="attPermHrs" data-i18n="permHours">Permission Hours</label><input type="number" id="attPermHrs" min="0" step="0.5" value="0"></div>
           </div>
-          <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="remarks">Remarks</label><input type="text" id="attRemarks"></div></div>
+          <div class="form-row"><div style="grid-column:1/-1"><label for="attRemarks" data-i18n="remarks">Remarks</label><input type="text" id="attRemarks"></div></div>
           <button class="btn btn-brown" onclick="markAttendance()" data-i18n="saveAttendance">Save Attendance</button>
         </div>
         <div class="card">
@@ -637,11 +638,11 @@ main.content{
         <p class="view-sub" data-i18n="leaveSub">Apply for leave and track status</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="from">From</label><input type="date" id="lvFrom"></div>
-            <div><label data-i18n="to">To</label><input type="date" id="lvTo"></div>
-            <div><label data-i18n="type">Type</label><select id="lvType"><option data-i18n="casual">Casual</option><option data-i18n="sick">Sick</option><option data-i18n="earned">Earned</option><option data-i18n="unpaid">Unpaid</option></select></div>
+            <div><label for="lvFrom" data-i18n="from">From</label><input type="date" id="lvFrom"></div>
+            <div><label for="lvTo" data-i18n="to">To</label><input type="date" id="lvTo"></div>
+            <div><label for="lvType" data-i18n="type">Type</label><select id="lvType"><option data-i18n="casual">Casual</option><option data-i18n="sick">Sick</option><option data-i18n="earned">Earned</option><option data-i18n="unpaid">Unpaid</option></select></div>
           </div>
-          <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="reason">Reason</label><input type="text" id="lvReason"></div></div>
+          <div class="form-row"><div style="grid-column:1/-1"><label for="lvReason" data-i18n="reason">Reason</label><input type="text" id="lvReason"></div></div>
           <button class="btn btn-brown" onclick="applyLeave()" data-i18n="applyLeave">Apply Leave</button>
         </div>
         <div class="card">
@@ -667,8 +668,8 @@ main.content{
         <p class="view-sub" data-i18n="myScoreSub">Your KPI score, workflow by workflow, for a custom date range</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="from">From</label><input type="date" id="msFrom"></div>
-            <div><label data-i18n="to">To</label><input type="date" id="msTo"></div>
+            <div><label for="msFrom" data-i18n="from">From</label><input type="date" id="msFrom"></div>
+            <div><label for="msTo" data-i18n="to">To</label><input type="date" id="msTo"></div>
             <div style="align-self:end;"><button class="btn btn-brown" onclick="loadMyScore()" data-i18n="runAppraisal">Run</button></div>
             <div style="align-self:end;"><button class="btn btn-outline" onclick="openStaffTrend(SESSION.staffId)" data-i18n="viewMyTrend">📈 My HR Appraisal Trend</button></div>
           </div>
@@ -682,9 +683,9 @@ main.content{
         <p class="view-sub" data-i18n="scoreBreakdownSub">View any staff member's KPI score breakdown for a custom date range</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="staff">Staff</label><select id="sbStaff"><option value="" data-i18n="select">Select</option></select></div>
-            <div><label data-i18n="from">From</label><input type="date" id="sbFrom"></div>
-            <div><label data-i18n="to">To</label><input type="date" id="sbTo"></div>
+            <div><label for="sbStaff" data-i18n="staff">Staff</label><select id="sbStaff"><option value="" data-i18n="select">Select</option></select></div>
+            <div><label for="sbFrom" data-i18n="from">From</label><input type="date" id="sbFrom"></div>
+            <div><label for="sbTo" data-i18n="to">To</label><input type="date" id="sbTo"></div>
             <div style="align-self:end;"><button class="btn btn-brown" onclick="loadScoreBreakdown()" data-i18n="runAppraisal">Run</button></div>
           </div>
         </div>
@@ -697,8 +698,8 @@ main.content{
         <p class="view-sub" data-i18n="staffApprSub">KPI-based appraisal for a custom date range</p>
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="from">From</label><input type="date" id="apprFrom"></div>
-            <div><label data-i18n="to">To</label><input type="date" id="apprTo"></div>
+            <div><label for="apprFrom" data-i18n="from">From</label><input type="date" id="apprFrom"></div>
+            <div><label for="apprTo" data-i18n="to">To</label><input type="date" id="apprTo"></div>
             <div style="align-self:end;"><button class="btn btn-brown" onclick="loadAppraisal()" data-i18n="runAppraisal">Run Appraisal</button></div>
           </div>
         </div>
@@ -726,9 +727,9 @@ main.content{
 
         <div class="card">
           <div class="form-row">
-            <div><label data-i18n="periodLabel">Period Label</label><input type="text" id="hrPeriod" placeholder="e.g. Jul-2026"></div>
-            <div><label data-i18n="from">From</label><input type="date" id="hrFrom"></div>
-            <div><label data-i18n="to">To</label><input type="date" id="hrTo"></div>
+            <div><label for="hrPeriod" data-i18n="periodLabel">Period Label</label><input type="text" id="hrPeriod" placeholder="e.g. Jul-2026"></div>
+            <div><label for="hrFrom" data-i18n="from">From</label><input type="date" id="hrFrom"></div>
+            <div><label for="hrTo" data-i18n="to">To</label><input type="date" id="hrTo"></div>
             <div style="align-self:end;"><button class="btn btn-brown" onclick="runFullAppraisal()" data-i18n="runAppraisal">Run Appraisal</button></div>
             <div style="align-self:end;"><button class="btn btn-outline" onclick="runAutoHrPreparation()">⚙️ Auto Prepare HR Data</button></div>
             <div style="align-self:end;"><button class="btn btn-outline hr-edit-only" onclick="saveHrSnapshot()" data-i18n="saveSnapshot">💾 Save Snapshot</button></div>
@@ -778,11 +779,11 @@ main.content{
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="addRecognition">Add Special Recognition (Bonus)</h3>
             <div class="form-row">
-              <div><label data-i18n="staff">Staff</label><select id="rcStaff"></select></div>
-              <div><label data-i18n="type">Type</label><select id="rcType" onchange="rcTypeChanged()"></select></div>
-              <div id="rcBonusWrap" style="display:none;"><label data-i18n="bonusMarks">Bonus Marks (2–5)</label><input type="number" id="rcBonusMarks" min="2" max="5" step="1" value="3"></div>
+              <div><label for="rcStaff" data-i18n="staff">Staff</label><select id="rcStaff"></select></div>
+              <div><label for="rcType" data-i18n="type">Type</label><select id="rcType" onchange="rcTypeChanged()"></select></div>
+              <div id="rcBonusWrap" style="display:none;"><label for="rcBonusMarks" data-i18n="bonusMarks">Bonus Marks (2–5)</label><input type="number" id="rcBonusMarks" min="2" max="5" step="1" value="3"></div>
             </div>
-            <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="reason">Reason</label><input type="text" id="rcReason" placeholder="Required"></div></div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="rcReason" data-i18n="reason">Reason</label><input type="text" id="rcReason" placeholder="Required"></div></div>
             <button class="btn btn-brown" onclick="addRecognitionEntry()" data-i18n="addRecognitionBtn">Add Recognition</button>
           </div>
           <div class="card">
@@ -796,14 +797,14 @@ main.content{
           <div class="card hr-edit-only">
             <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="issueNewMemo">Issue New Memo</h3>
             <div class="form-row">
-              <div><label data-i18n="staff">Staff</label><select id="dmStaff"></select></div>
-              <div><label data-i18n="memoDate">Memo Date</label><input type="date" id="dmMemoDate"></div>
-              <div><label data-i18n="actionType">Action Type</label><select id="dmType"></select></div>
-              <div><label data-i18n="category">Category</label><select id="dmCategory"></select></div>
+              <div><label for="dmStaff" data-i18n="staff">Staff</label><select id="dmStaff"></select></div>
+              <div><label for="dmMemoDate" data-i18n="memoDate">Memo Date</label><input type="date" id="dmMemoDate"></div>
+              <div><label for="dmType" data-i18n="actionType">Action Type</label><select id="dmType"></select></div>
+              <div><label for="dmCategory" data-i18n="category">Category</label><select id="dmCategory"></select></div>
             </div>
-            <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="reasonShort">Reason (short)</label><input type="text" id="dmReason" placeholder="Required"></div></div>
-            <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="descDetailed">Description (detailed)</label><textarea id="dmDescription" rows="3" placeholder="Optional — full account of the incident"></textarea></div></div>
-            <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="attachLink">Attachment Link (optional)</label><input type="text" id="dmAttachment" placeholder="Paste a Google Drive / document link"></div></div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="dmReason" data-i18n="reasonShort">Reason (short)</label><input type="text" id="dmReason" placeholder="Required"></div></div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="dmDescription" data-i18n="descDetailed">Description (detailed)</label><textarea id="dmDescription" rows="3" placeholder="Optional — full account of the incident"></textarea></div></div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="dmAttachment" data-i18n="attachLink">Attachment Link (optional)</label><input type="text" id="dmAttachment" placeholder="Paste a Google Drive / document link"></div></div>
             <button class="btn btn-danger" onclick="issueMemoEntry()" data-i18n="issueMemoBtn">Issue Memo</button>
           </div>
           <div class="card">
@@ -826,29 +827,29 @@ main.content{
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="enterManualCriteria">HR Appraisal Entry — This Month</h3>
             <div class="form-row">
-              <div><label data-i18n="staff">Staff</label><select id="msStaff" onchange="msLoadExisting()"></select></div>
+              <div><label for="msStaff" data-i18n="staff">Staff</label><select id="msStaff" onchange="msLoadExisting()"></select></div>
               <div style="display:flex;align-items:flex-end">
                 <button type="button" class="btn btn-outline" onclick="msAutoFillFromRegisters()" data-i18n="autoFillFromRegisters">⟳ Auto-fill from Attendance/Leave</button>
               </div>
-              <div><label data-i18n="workingDays">Working Days</label><input type="number" id="msWorkingDays" min="0" step="1" value="0"></div>
-              <div><label data-i18n="presentDays">Present Days</label><input type="number" id="msPresentDays" min="0" step="1" value="0"></div>
-              <div><label data-i18n="leaveDays">Leave Days</label><input type="number" id="msLeaveDays" min="0" step="1" value="0"></div>
-              <div><label data-i18n="permissionHours">Permission Hours</label><input type="number" id="msPermissionHours" min="0" step="0.5" value="0"></div>
-              <div><label data-i18n="lateEntries">Late Entries</label><input type="number" id="msLateEntries" min="0" step="1" value="0"></div>
-              <div><label data-i18n="earlyLeavingCount">Early Leaving Count</label><input type="number" id="msEarlyLeaving" min="0" step="1" value="0"></div>
-              <div><label data-i18n="shiftCompliancePct">Shift Compliance %</label><input type="number" id="msShiftCompliance" min="0" max="100" step="1" value="100"></div>
-              <div><label data-i18n="overtimeHours">Overtime Hours (optional, info only)</label><input type="number" id="msOvertimeHours" min="0" step="0.5" value="0"></div>
-              <div><label data-i18n="disciplineRating">Discipline (0–10)</label><input type="number" id="msDiscipline" min="0" max="10" step="0.5" value="0"></div>
-              <div><label data-i18n="policyComplianceRating">Policy Compliance (0–10)</label><input type="number" id="msPolicyCompliance" min="0" max="10" step="0.5" value="0"></div>
-              <div><label data-i18n="behaviourRating">Behaviour &amp; Conduct (0–10)</label><input type="number" id="msBehaviour" min="0" max="10" step="0.5" value="0"></div>
+              <div><label for="msWorkingDays" data-i18n="workingDays">Working Days</label><input type="number" id="msWorkingDays" min="0" step="1" value="0"></div>
+              <div><label for="msPresentDays" data-i18n="presentDays">Present Days</label><input type="number" id="msPresentDays" min="0" step="1" value="0"></div>
+              <div><label for="msLeaveDays" data-i18n="leaveDays">Leave Days</label><input type="number" id="msLeaveDays" min="0" step="1" value="0"></div>
+              <div><label for="msPermissionHours" data-i18n="permissionHours">Permission Hours</label><input type="number" id="msPermissionHours" min="0" step="0.5" value="0"></div>
+              <div><label for="msLateEntries" data-i18n="lateEntries">Late Entries</label><input type="number" id="msLateEntries" min="0" step="1" value="0"></div>
+              <div><label for="msEarlyLeaving" data-i18n="earlyLeavingCount">Early Leaving Count</label><input type="number" id="msEarlyLeaving" min="0" step="1" value="0"></div>
+              <div><label for="msShiftCompliance" data-i18n="shiftCompliancePct">Shift Compliance %</label><input type="number" id="msShiftCompliance" min="0" max="100" step="1" value="100"></div>
+              <div><label for="msOvertimeHours" data-i18n="overtimeHours">Overtime Hours (optional, info only)</label><input type="number" id="msOvertimeHours" min="0" step="0.5" value="0"></div>
+              <div><label for="msDiscipline" data-i18n="disciplineRating">Discipline (0–10)</label><input type="number" id="msDiscipline" min="0" max="10" step="0.5" value="0"></div>
+              <div><label for="msPolicyCompliance" data-i18n="policyComplianceRating">Policy Compliance (0–10)</label><input type="number" id="msPolicyCompliance" min="0" max="10" step="0.5" value="0"></div>
+              <div><label for="msBehaviour" data-i18n="behaviourRating">Behaviour &amp; Conduct (0–10)</label><input type="number" id="msBehaviour" min="0" max="10" step="0.5" value="0"></div>
               <div>
-                <label data-i18n="trainingSkill">Training Score (Automatic)</label>
+                <label for="msTrainingDisplay" data-i18n="trainingSkill">Training Score (Automatic)</label>
                 <div style="display:flex;align-items:center;gap:8px">
                   <input type="text" id="msTrainingDisplay" value="— / 10" readonly disabled style="background:#f2ede6;font-weight:600">
                   <button type="button" class="btn btn-outline" style="padding:6px 10px;white-space:nowrap" onclick="openTrainingDetails(document.getElementById('msStaff').value)" data-i18n="viewTrainingDetails">🎓 View Details</button>
                 </div>
               </div>
-              <div><label data-i18n="hrRemarksRating">HR Remarks Rating (0–5)</label><select id="msHrRemarksRating">
+              <div><label for="msHrRemarksRating" data-i18n="hrRemarksRating">HR Remarks Rating (0–5)</label><select id="msHrRemarksRating">
                 <option value="0" data-i18n="hrRemarksNotRated">Not Rated (0)</option>
                 <option value="1" data-i18n="hrRemarksPoor">Poor (1)</option>
                 <option value="2" data-i18n="hrRemarksNeedsImprovement">Needs Improvement (2)</option>
@@ -857,7 +858,7 @@ main.content{
                 <option value="5" data-i18n="hrRemarksExcellent">Excellent (5)</option>
               </select></div>
             </div>
-            <div class="form-row"><div style="grid-column:1/-1"><label data-i18n="comments">HR Remarks</label><input type="text" id="msComments"></div></div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="msComments" data-i18n="comments">HR Remarks</label><input type="text" id="msComments"></div></div>
             <button class="btn btn-brown" onclick="submitManualScoreEntry()" data-i18n="saveManualScores">Save HR Appraisal Entry</button>
           </div>
           <div class="card">
@@ -873,21 +874,21 @@ main.content{
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="recordTraining">Record Training Completion</h3>
             <div class="form-row">
-              <div><label data-i18n="staff">Staff</label><select id="trStaff"></select></div>
-              <div><label data-i18n="training">Training</label><select id="trTraining"></select></div>
-              <div><label data-i18n="trainingDate">Training Date</label><input type="date" id="trDate"></div>
-              <div><label data-i18n="trainer">Trainer</label><input type="text" id="trTrainer"></div>
-              <div><label data-i18n="mode">Mode</label><select id="trMode">
+              <div><label for="trStaff" data-i18n="staff">Staff</label><select id="trStaff"></select></div>
+              <div><label for="trTraining" data-i18n="training">Training</label><select id="trTraining"></select></div>
+              <div><label for="trDate" data-i18n="trainingDate">Training Date</label><input type="date" id="trDate"></div>
+              <div><label for="trTrainer" data-i18n="trainer">Trainer</label><input type="text" id="trTrainer"></div>
+              <div><label for="trMode" data-i18n="mode">Mode</label><select id="trMode">
                 <option value="Classroom">Classroom</option><option value="Online">Online</option><option value="On-the-job">On-the-job</option>
               </select></div>
-              <div><label data-i18n="attendance">Attendance</label><select id="trAttendance">
+              <div><label for="trAttendance" data-i18n="attendance">Attendance</label><select id="trAttendance">
                 <option value="Present">Present</option><option value="Absent">Absent</option>
               </select></div>
-              <div><label data-i18n="assessmentScore">Assessment Score (0-100)</label><input type="number" id="trAssessment" min="0" max="100" step="1" value="0"></div>
-              <div><label data-i18n="completionStatus">Completion Status</label><select id="trCompletion">
+              <div><label for="trAssessment" data-i18n="assessmentScore">Assessment Score (0-100)</label><input type="number" id="trAssessment" min="0" max="100" step="1" value="0"></div>
+              <div><label for="trCompletion" data-i18n="completionStatus">Completion Status</label><select id="trCompletion">
                 <option value="Completed">Completed</option><option value="Not Completed">Not Completed</option><option value="Failed">Failed</option>
               </select></div>
-              <div style="grid-column:1/-1"><label data-i18n="certificateEvidence">Certificate / Evidence Link (optional)</label><input type="text" id="trCertificate" placeholder="Paste a Google Drive / document link"></div>
+              <div style="grid-column:1/-1"><label for="trCertificate" data-i18n="certificateEvidence">Certificate / Evidence Link (optional)</label><input type="text" id="trCertificate" placeholder="Paste a Google Drive / document link"></div>
             </div>
             <div class="li-target-info" id="trPreview" style="margin:6px 0 10px;"></div>
             <button class="btn btn-brown" onclick="addTrainingRecordEntry()" data-i18n="saveTrainingRecord">Save Training Record</button>
@@ -972,21 +973,21 @@ main.content{
 
         <div class="card">
           <div class="form-row" id="repFilterRow">
-            <div data-rep-filter="date"><label data-i18n="from">From</label><input type="date" id="repFrom"></div>
-            <div data-rep-filter="date"><label data-i18n="to">To</label><input type="date" id="repTo"></div>
-            <div data-rep-filter="section"><label data-i18n="section">Section</label>
+            <div data-rep-filter="date"><label for="repFrom" data-i18n="from">From</label><input type="date" id="repFrom"></div>
+            <div data-rep-filter="date"><label for="repTo" data-i18n="to">To</label><input type="date" id="repTo"></div>
+            <div data-rep-filter="section"><label for="repSection" data-i18n="section">Section</label>
               <select id="repSection"><option value="" data-i18n="all">All</option></select>
             </div>
-            <div data-rep-filter="staff"><label data-i18n="staff">Staff</label>
+            <div data-rep-filter="staff"><label for="repStaff" data-i18n="staff">Staff</label>
               <select id="repStaff"><option value="" data-i18n="all">All</option></select>
             </div>
-            <div data-rep-filter="activity"><label data-i18n="activity">Activity</label>
+            <div data-rep-filter="activity"><label for="repActivity" data-i18n="activity">Activity</label>
               <select id="repActivity"><option value="" data-i18n="all">All</option></select>
             </div>
-            <div data-rep-filter="workflow"><label data-i18n="workflow">Workflow</label>
+            <div data-rep-filter="workflow"><label for="repWorkflow" data-i18n="workflow">Workflow</label>
               <select id="repWorkflow"><option value="" data-i18n="all">All</option></select>
             </div>
-            <div data-rep-filter="status"><label data-i18n="status">Status</label>
+            <div data-rep-filter="status"><label for="repStatus" data-i18n="status">Status</label>
               <select id="repStatus">
                 <option value="" data-i18n="all">All</option>
                 <option value="Draft" data-i18n="statusDraft">Draft</option>
@@ -1034,12 +1035,12 @@ main.content{
           <div id="staffFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="staffFormTitle" style="margin-bottom:8px;">Add Staff</h4>
             <div class="form-row">
-              <div><label>Staff Name</label><input type="text" id="sfName"></div>
-              <div><label>Designation</label><input type="text" id="sfDesignation"></div>
-              <div><label>Section</label><select id="sfSection"></select></div>
-              <div><label>Reporting Manager</label><input type="text" id="sfReportingManager"></div>
-              <div><label>Date of Joining</label><input type="date" id="sfDoj"></div>
-              <div><label>Status</label><select id="sfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
+              <div><label for="sfName">Staff Name</label><input type="text" id="sfName"></div>
+              <div><label for="sfDesignation">Designation</label><input type="text" id="sfDesignation"></div>
+              <div><label for="sfSection">Section</label><select id="sfSection"></select></div>
+              <div><label for="sfReportingManager">Reporting Manager</label><input type="text" id="sfReportingManager"></div>
+              <div><label for="sfDoj">Date of Joining</label><input type="date" id="sfDoj"></div>
+              <div><label for="sfStatus">Status</label><select id="sfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
             </div>
             <button class="btn btn-brown btn-sm" onclick="saveStaffForm()">Save</button>
             <button class="btn btn-outline btn-sm" onclick="closeStaffForm()">Cancel</button>
@@ -1053,7 +1054,7 @@ main.content{
           <div class="table-wrap"><table id="sectionTable"><thead><tr><th>ID</th><th>Section Name</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="sectionFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="sectionFormTitle" style="margin-bottom:8px;">Add Section</h4>
-            <div class="form-row"><div><label>Section Name</label><input type="text" id="secfName"></div></div>
+            <div class="form-row"><div><label for="secfName">Section Name</label><input type="text" id="secfName"></div></div>
             <button class="btn btn-brown btn-sm" onclick="saveSectionForm()">Save</button>
             <button class="btn btn-outline btn-sm" onclick="closeSectionForm()">Cancel</button>
           </div>
@@ -1067,8 +1068,8 @@ main.content{
           <div id="activityFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="activityFormTitle" style="margin-bottom:8px;">Add Activity</h4>
             <div class="form-row">
-              <div><label>Activity Code</label><input type="text" id="actfCode"></div>
-              <div><label>Activity Name</label><input type="text" id="actfName"></div>
+              <div><label for="actfCode">Activity Code</label><input type="text" id="actfCode"></div>
+              <div><label for="actfName">Activity Name</label><input type="text" id="actfName"></div>
             </div>
             <button class="btn btn-brown btn-sm" onclick="saveActivityForm()">Save</button>
             <button class="btn btn-outline btn-sm" onclick="closeActivityForm()">Cancel</button>
@@ -1114,7 +1115,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxmJ8BXZva6XGubLZ0KOFQZq8gfgcIXrH4PSId-g1RNYNibpxYC2_D24FxmB2PuEA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwaEVLmjV62i3zxd3XLZTPqVRlkIq7K1ctvbylQFQmscOXCLp72-MG2yrOTmVcm9t-Q/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1306,10 +1307,10 @@ const I18N = {
   cancel: { en: "Cancel", ta: "ரத்துசெய்" },
   mustChangePasswordNote: { en: "For security, please set a new password before continuing.", ta: "பாதுகாப்பிற்காக, தொடர்வதற்கு முன் புதிய கடவுச்சொல்லை அமைக்கவும்." },
   currentPassword: { en: "Current Password", ta: "தற்போதைய கடவுச்சொல்" },
-  newPassword: { en: "New Password (min 6 characters)", ta: "புதிய கடவுச்சொல் (குறைந்தது 6 எழுத்துகள்)" },
+  newPassword: { en: "New Password (min 8 characters, letters + numbers)", ta: "புதிய கடவுச்சொல் (குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் சேர்த்து)" },
   confirmNewPassword: { en: "Confirm New Password", ta: "புதிய கடவுச்சொல்லை உறுதிப்படுத்தவும்" },
   saveNewPassword: { en: "Save New Password", ta: "புதிய கடவுச்சொல்லை சேமி" },
-  passwordTooShort: { en: "New password must be at least 6 characters", ta: "புதிய கடவுச்சொல் குறைந்தது 6 எழுத்துகள் இருக்க வேண்டும்" },
+  passwordTooShort: { en: "New password must be at least 8 characters with letters and numbers", ta: "புதிய கடவுச்சொல் குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் கலந்து இருக்க வேண்டும்" },
   passwordsDontMatch: { en: "New password and confirmation do not match", ta: "புதிய கடவுச்சொல் மற்றும் உறுதிப்படுத்தல் பொருந்தவில்லை" },
   passwordChanged: { en: "Password changed successfully", ta: "கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது" },
   autoFillFromRegisters: { en: "⟳ Auto-fill from Attendance/Leave", ta: "⟳ வருகைப் பதிவு/விடுப்பிலிருந்து தானாக நிரப்பு" },
@@ -1863,7 +1864,7 @@ async function submitChangePassword() {
   const errEl = document.getElementById('cpError');
   errEl.textContent = '';
   if (!oldPassword || !newPassword) { errEl.textContent = T('enterCreds'); return; }
-  if (newPassword.length < 6) { errEl.textContent = T('passwordTooShort'); return; }
+  if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) { errEl.textContent = T('passwordTooShort'); return; }
   if (newPassword !== confirmPassword) { errEl.textContent = T('passwordsDontMatch'); return; }
   try {
     await callApi('changePassword', { oldPassword, newPassword });
@@ -2053,6 +2054,7 @@ async function enterApp() {
   // Staff/Activity/Workflow rows before accepting it; if it still can't
   // get a complete Masters set, we stop here and show a blocking retry
   // screen instead of quietly continuing with a half-built app.
+  ensureChartJs().catch(() => {}); // warm Chart.js in parallel with getMasters(); dashboard charts need it right after
   const ok = await loadMastersData();
   if (!ok) {
     showMastersLoadError();
@@ -2178,7 +2180,14 @@ function initNotifications() {
   }
   document.getElementById('notifBellWrap').style.display = 'block';
   loadNotifications();
-  notifPollTimer = setInterval(loadNotifications, 60000); // poll every 60s
+  // PERF (Sep 2026, item 2): was every 60s for every logged-in user, even
+  // with the tab in the background. Now every 3 minutes, skipped while the
+  // tab is hidden, and refreshed once immediately when the tab is shown again.
+  notifPollTimer = setInterval(() => { if (!document.hidden) loadNotifications(); }, 180000);
+  if (!window._notifVisHooked) {
+    window._notifVisHooked = true;
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && SESSION) loadNotifications(); });
+  }
 }
 
 async function loadNotifications() {
@@ -2348,6 +2357,7 @@ async function loadDashboard() {
   if (SESSION.role === 'Staff') p.staffId = SESSION.staffId;
   let d;
   try { d = await callApi('getDashboard', p); } catch (e) { toast(e.message); return; }
+  if (!SESSION) return;
 
   // UPTREND arrow (Aug 2026): getDashboard() now returns d.trend (Approved-base
   // comparison vs the immediately preceding period of the same length) - null
@@ -2377,11 +2387,44 @@ async function loadDashboard() {
   drawBarChart('chartActivity', d.byActivity, '#9C6B45');
 }
 
+/* ------------------------------------------------------------
+   LAZY LIBRARY LOADERS (Sep 2026, item 6)
+   ------------------------------------------------------------ */
+const CHARTJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const _scriptPromises = {};
+function _loadScriptOnce(url) {
+  if (!_scriptPromises[url]) {
+    _scriptPromises[url] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = () => resolve();
+      s.onerror = () => { delete _scriptPromises[url]; reject(new Error('Could not load a required library. Check the internet connection and try again.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return _scriptPromises[url];
+}
+function ensureChartJs() { return window.Chart ? Promise.resolve() : _loadScriptOnce(CHARTJS_URL); }
+function ensureXlsx() { return window.XLSX ? Promise.resolve() : _loadScriptOnce(XLSX_URL); }
+
 let chartRefs = {};
+// Each draw*Chart() is now a thin wrapper: wait for Chart.js (instant if
+// already loaded), then run the original drawing code unchanged.
 function drawBarChart(canvasId, dataObj, color) {
+  ensureChartJs().then(() => _drawBarChartNow(canvasId, dataObj, color)).catch(e => console.warn(e.message));
+}
+function drawGroupedBarChart(canvasId, labels, datasets) {
+  ensureChartJs().then(() => _drawGroupedBarChartNow(canvasId, labels, datasets)).catch(e => console.warn(e.message));
+}
+function drawLineChart(canvasId, labels, values) {
+  ensureChartJs().then(() => _drawLineChartNow(canvasId, labels, values)).catch(e => console.warn(e.message));
+}
+function _drawBarChartNow(canvasId, dataObj, color) {
   const labels = Object.keys(dataObj);
   const values = Object.values(dataObj);
   const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
   if (chartRefs[canvasId]) chartRefs[canvasId].destroy();
   chartRefs[canvasId] = new Chart(ctx, {
     type: 'bar',
@@ -2430,6 +2473,9 @@ async function loadCurrentMonthTargets() {
     CURRENT_MONTH_KPI_STATUS = map;
   } catch (e) {
     CURRENT_MONTH_KPI_STATUS = {};
+    // callApi() already logged the user out on a genuine session expiry -
+    // don't fire the legacy fallback call with no session.
+    if (!SESSION) return;
     // Backward-compatible fallback: if the new balance action is unavailable
     // after deployment, still load the Manager-set Monthly Target so the
     // register does not silently fall back to the Workflow Master target.
@@ -2550,21 +2596,21 @@ function renderChecklistRows() {
         <div>Balance Target: <strong style="color:var(--coffee-700);">${target.remaining}</strong></div>
       </div>
       <div class="wf-count-box form-row" style="display:none;">
-        <div><label>Count</label><input type="number" class="wf-count" min="0" step="1" value="0"></div>
-        <div><label>Unit</label><input type="text" value="${escapeHtml(w['Unit'])}" readonly></div>
-        <div><label>Remarks</label><input type="text" class="wf-remarks" placeholder="Optional"></div>
+        <div><label for="wfCount_${escapeHtml(w['Workflow ID'])}">Count</label><input type="number" id="wfCount_${escapeHtml(w['Workflow ID'])}" class="wf-count" min="0" step="1" value="0"></div>
+        <div><label for="wfUnit_${escapeHtml(w['Workflow ID'])}">Unit</label><input type="text" id="wfUnit_${escapeHtml(w['Workflow ID'])}" value="${escapeHtml(w['Unit'])}" readonly></div>
+        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Optional"></div>
       </div>
       ${isTeam ? `
       <div class="reg-co-staff-wrap" style="display:none;margin-top:10px;">
-        <label style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;">Co-Staff who also worked on this (optional)</label>
+        <div style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;">Co-Staff who also worked on this (optional)</div>
         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">
           ${coStaffOptions.map(s => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;"><input type="checkbox" class="reg-co-staff" value="${escapeHtml(s['Staff ID'])}"> ${escapeHtml(s['Staff Name'])}</label>`).join('')}
         </div>
         <p style="font-size:11.5px;color:var(--coffee-500);margin-top:6px;line-height:1.5;">This workflow is team-based. Select everyone who worked on this same job; points will be shared equally after approval. You can submit another entry later on the same date for another job.</p>
       </div>` : (isManager ? `
       <div class="reg-assign-wrap" style="display:none;margin:6px 0 10px 25px;">
-        <label style="font-size:11.5px;font-weight:600;color:var(--coffee-700);">Assign KPI credit to</label>
-        <select class="reg-assign-staff"><option value="">Myself (${escapeHtml(SESSION.staffName)})</option>${MASTERS.staff.filter(s=>s['Status']!=='Inactive').map(s=>`<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])} (${escapeHtml(s['Staff ID'])})</option>`).join('')}</select>
+        <label for="wfAssign_${escapeHtml(w['Workflow ID'])}" style="font-size:11.5px;font-weight:600;color:var(--coffee-700);">Assign KPI credit to</label>
+        <select id="wfAssign_${escapeHtml(w['Workflow ID'])}" class="reg-assign-staff"><option value="">Myself (${escapeHtml(SESSION.staffName)})</option>${MASTERS.staff.filter(s=>s['Status']!=='Inactive').map(s=>`<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])} (${escapeHtml(s['Staff ID'])})</option>`).join('')}</select>
       </div>` : '')}
     </div>`;
   }).join('') || `<p class="empty">${T('noWorkflowsFound')}</p>`;
@@ -2665,6 +2711,7 @@ function groupEntryLinesByWorkflow(g) {
 }
 
 async function loadMyDrafts() {
+  if (!SESSION) return;
   const card = document.getElementById('myDraftsCard');
   if (SESSION.role !== 'Staff') { card.style.display = 'none'; return; }
   card.style.display = 'block';
@@ -2705,6 +2752,7 @@ async function loadMyDrafts() {
 // currently visible, so an action taken from one is immediately reflected
 // without the person needing to manually switch tabs and back.
 function refreshRegisterViews() {
+  if (!SESSION) return;
   loadRegister();
   if (document.getElementById('view-approvals').classList.contains('active')) loadApprovals();
 }
@@ -2751,8 +2799,8 @@ async function openEditDraft(groupId) {
         <div style="font-weight:600;color:var(--coffee-700);margin-bottom:6px;">${escapeHtml(wg.workflowName)}</div>
         <div style="font-size:12px;color:var(--coffee-500);margin-bottom:6px;">Staff: <strong>${escapeHtml(wg.staffName)}</strong> &middot; Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
         <div class="form-row">
-          <div><label>Actual</label><input type="number" min="0" class="edit-draft-actual" data-wfid="${escapeHtml(wg.workflowId)}" value="${wg.actual}"></div>
-          <div><label>Remarks</label><input type="text" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
+          <div><label for="edActual_${escapeHtml(wg.workflowId)}">Actual</label><input type="number" id="edActual_${escapeHtml(wg.workflowId)}" min="0" class="edit-draft-actual" data-wfid="${escapeHtml(wg.workflowId)}" value="${wg.actual}"></div>
+          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
         </div>
       </div>
     `).join('')}
@@ -2783,16 +2831,30 @@ async function saveEditDraft() {
   } catch (e) { toast(e.message); }
 }
 
+const REGISTER_VISIBLE_DAYS = 90;
 async function loadRegister() {
+  // BUGFIX (Sep 2026): "Cannot read properties of null (reading 'role')".
+  // If the session expires (callApi() -> logout() sets SESSION = null) while
+  // this function is mid-flight, the code below used to carry on and read
+  // SESSION.role. Bail out quietly whenever there is no session.
+  if (!SESSION) return;
   populateRegActivitySelect();
   loadMyDrafts();
   await loadCurrentMonthTargets();
+  if (!SESSION) return; // session expired during the await above
   // if a checklist is already showing (e.g. user switches views and back),
   // refresh it so the KPI Target hints pick up the newly loaded targets
   if (document.getElementById('regActivity').value) renderWorkflowChecklist();
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
+  // PERF (Sep 2026, item 3): only fetch the last REGISTER_VISIBLE_DAYS days.
+  // The table shows at most 50 rows anyway, but the server used to send the
+  // ENTIRE register history on every open. Team-split maths is still done
+  // server-side against the full approved set, so scores are unaffected.
+  const regFrom = new Date(); regFrom.setDate(regFrom.getDate() - REGISTER_VISIBLE_DAYS);
+  p.from = localDateStr(regFrom);
   let rows;
   try { rows = await callApi('getWorkingRegister', p); } catch (e) { toast(e.message); return; }
+  if (!SESSION) return;
   rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
   const tbody = document.querySelector('#registerTable tbody');
   // Co-Staff/Team for a row = the other participants sharing its Team Ref
@@ -3020,6 +3082,7 @@ async function saveWorkflowEdit() {
    Staff mark their own daily attendance; Manager sees everyone's.
    ============================================================ */
 async function markAttendance() {
+  if (!SESSION) { toast('Your session expired. Please log in again.'); return; }
   const date = document.getElementById('attDate').value;
   const status = document.getElementById('attStatus').value;
   const permissionHours = document.getElementById('attPermHrs').value;
@@ -3048,7 +3111,7 @@ async function loadAttendance() {
     <tr>
       <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
       <td><span class="badge ${safeStatusClass(r['Status'])}">${escapeHtml(r['Status'])}</span></td>
-      <td>${r['Permission Hours'] || 0}</td><td>${escapeHtml(r['Remarks'] || '')}</td>
+      <td>${Number(r['Permission Hours']) || 0}</td><td>${escapeHtml(r['Remarks'] || '')}</td>
     </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('noEntriesYet')}</td></tr>`;
 }
 
@@ -3057,6 +3120,7 @@ async function loadAttendance() {
    Staff apply for leave; Manager approves/rejects (decideLeave()).
    ============================================================ */
 async function applyLeave() {
+  if (!SESSION) { toast('Your session expired. Please log in again.'); return; }
   const fromDate = document.getElementById('lvFrom').value;
   const toDate = document.getElementById('lvTo').value;
   const leaveType = document.getElementById('lvType').value;
@@ -3074,9 +3138,11 @@ async function applyLeave() {
 }
 
 async function loadLeave() {
+  if (!SESSION) return;
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
   let rows;
   try { rows = await callApi('getLeaves', p); } catch (e) { toast(e.message); return; }
+  if (!SESSION) return;
   rows.sort((a, b) => new Date(b['Applied On']) - new Date(a['Applied On']));
   const isManager = SESSION.role === 'Manager';
   document.querySelector('#leaveTable tbody').innerHTML = rows.map(r => {
@@ -3143,6 +3209,7 @@ function mtShowDefaultTargetHint() {
 }
 
 async function saveMonthlyTarget() {
+  if (!SESSION) { toast('Your session expired. Please log in again.'); return; }
   const monthVal = document.getElementById('mtMonth').value;
   const activityId = document.getElementById('mtActivity').value;
   const workflowId = document.getElementById('mtWorkflow').value;
@@ -3671,6 +3738,7 @@ function memoTimelineHtml(m) {
 async function openMemoDetailManager(memoId) {
   let m;
   try { m = await callApi('getMemoDetail', { memoId }); } catch (e) { toast(e.message); return; }
+  if (!SESSION) return; // session expired while the memo was loading
   const card = document.getElementById('memoDetailCard');
   card.style.display = 'block';
   // XSS FIX (audit item 16): every sheet-sourced string below now goes
@@ -3709,21 +3777,21 @@ async function openMemoDetailManager(memoId) {
     </div>
 
     <div class="form-row" style="margin-top:16px;">
-      <div style="grid-column:1/-1"><label>Manager Review</label><textarea id="mdManagerReview" rows="2">${escapeHtml(m['Manager Review'] || '')}</textarea></div>
+      <div style="grid-column:1/-1"><label for="mdManagerReview">Manager Review</label><textarea id="mdManagerReview" rows="2">${escapeHtml(m['Manager Review'] || '')}</textarea></div>
     </div>
     ${SESSION.role === 'HR' ? `
     <div class="form-row">
-      <div style="grid-column:1/-1"><label>HR Review (optional)</label><textarea id="mdHrReview" rows="2">${escapeHtml(m['HR Review'] || '')}</textarea></div>
+      <div style="grid-column:1/-1"><label for="mdHrReview">HR Review (optional)</label><textarea id="mdHrReview" rows="2">${escapeHtml(m['HR Review'] || '')}</textarea></div>
     </div>` : ''}
     <button class="btn btn-outline btn-sm" data-action="saveMemoReview" data-id="${escapeHtml(m['Memo ID'])}">Save Review</button>
 
     ${SESSION.role === 'HR' ? `
     <div class="form-row" style="margin-top:16px;">
-      <div><label>Final Decision</label><select id="mdDecision">
+      <div><label for="mdDecision">Final Decision</label><select id="mdDecision">
         <option value="">Select</option>
         ${MEMO_DECISIONS.map(d => `<option value="${escapeHtml(d)}" ${m['Final Decision'] === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
       </select></div>
-      <div><label>Adjusted Deduction (required if Final Decision is "Deduction Adjusted")</label><input type="number" id="mdAdjustedDeduction" min="0" step="1" placeholder="Original: ${escapeHtml(m['Deduction Marks'])}"></div>
+      <div><label for="mdAdjustedDeduction">Adjusted Deduction (required if Final Decision is "Deduction Adjusted")</label><input type="number" id="mdAdjustedDeduction" min="0" step="1" placeholder="Original: ${escapeHtml(m['Deduction Marks'])}"></div>
     </div>
     <button class="btn btn-brown btn-sm" data-action="saveMemoDecision" data-id="${escapeHtml(m['Memo ID'])}">Finalize Decision</button>` :
     `<p style="font-size:12.5px;color:var(--coffee-500);margin-top:10px;">${T('finalDecisionHrOnly')}</p>`}
@@ -3800,7 +3868,7 @@ async function openMyMemoDetail(memoId) {
     ${memoTimelineHtml(m)}
 
     <div class="form-row" style="margin-top:14px;">
-      <div style="grid-column:1/-1"><label>Your Reply</label><textarea id="myReplyText" rows="3">${escapeHtml(m['Employee Reply'] || '')}</textarea></div>
+      <div style="grid-column:1/-1"><label for="myReplyText">Your Reply</label><textarea id="myReplyText" rows="3">${escapeHtml(m['Employee Reply'] || '')}</textarea></div>
     </div>
     <button class="btn btn-brown btn-sm" data-action="submitMyMemoReply" data-id="${escapeHtml(m['Memo ID'])}">Submit Reply</button>
 
@@ -4165,8 +4233,9 @@ async function loadHrLiveDashboard() {
   `).join('') || `<tr><td colspan="2" class="empty">${T('noData')}</td></tr>`;
 }
 
-function drawGroupedBarChart(canvasId, labels, datasets) {
+function _drawGroupedBarChartNow(canvasId, labels, datasets) {
   const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
   if (chartRefs[canvasId]) chartRefs[canvasId].destroy();
   chartRefs[canvasId] = new Chart(ctx, {
     type: 'bar',
@@ -4175,8 +4244,9 @@ function drawGroupedBarChart(canvasId, labels, datasets) {
   });
 }
 
-function drawLineChart(canvasId, labels, values) {
+function _drawLineChartNow(canvasId, labels, values) {
   const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
   if (chartRefs[canvasId]) chartRefs[canvasId].destroy();
   chartRefs[canvasId] = new Chart(ctx, {
     type: 'line',
@@ -4630,7 +4700,10 @@ function printReport() {
   w.print();
 }
 
-function exportXlsx(rows, filename) {
+async function exportXlsx(rows, filename) {
+  // xlsx (~1 MB) is downloaded on the first export only, then cached by the browser.
+  if (!window.XLSX) toast('Preparing Excel export...');
+  try { await ensureXlsx(); } catch (e) { toast(e.message); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Report');
@@ -4696,6 +4769,7 @@ function closeStaffForm() {
   document.getElementById('staffFormCard').style.display = 'none';
 }
 async function saveStaffForm() {
+  if (!SESSION) { toast('Your session expired. Please log in again.'); return; }
   const staffId = document.getElementById('staffFormCard').dataset.staffId;
   const fields = {
     'Staff Name': document.getElementById('sfName').value,
