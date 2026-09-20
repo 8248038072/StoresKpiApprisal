@@ -1115,7 +1115,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwaEVLmjV62i3zxd3XLZTPqVRlkIq7K1ctvbylQFQmscOXCLp72-MG2yrOTmVcm9t-Q/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1315,6 +1315,7 @@ const I18N = {
   passwordChanged: { en: "Password changed successfully", ta: "கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது" },
   autoFillFromRegisters: { en: "⟳ Auto-fill from Attendance/Leave", ta: "⟳ வருகைப் பதிவு/விடுப்பிலிருந்து தானாக நிரப்பு" },
   autoFilledReview: { en: "Auto-filled from source registers - please review before saving", ta: "மூல பதிவேடுகளிலிருந்து தானாக நிரப்பப்பட்டது - சேமிக்கும் முன் சரிபார்க்கவும்" },
+  selectStaffFirst: { en: "Please select a staff member first", ta: "முதலில் ஒரு ஊழியரைத் தேர்ந்தெடுக்கவும்" },
   manualScoresThisPeriod: { en: "Manual Scores — This Period", ta: "கைமுறை மதிப்பெண்கள் — இந்தக் காலப்பகுதி" },
   qualCol2: { en: "Qual.", ta: "தரம்" },
   teamCol2: { en: "Team", ta: "குழு" },
@@ -1596,9 +1597,10 @@ const I18N = {
   trainingUpdated: { en: "Training record updated", ta: "பயிற்சி பதிவு புதுப்பிக்கப்பட்டது" },
   editTrainingRecord: { en: "Edit Training Record", ta: "பயிற்சி பதிவை திருத்து" },
   recordNotFound: { en: "Record not found", ta: "பதிவு கிடைக்கவில்லை" },
+  saveChanges: { en: "Save Changes", ta: "மாற்றங்களை சேமி" },
   edit: { en: "Edit", ta: "திருத்து" },
   actions: { en: "Actions", ta: "செயல்கள்" },
-  selectStaffFirst: { en: "Select a staff member first", ta: "முதலில் ஒரு ஊழியரைத் தேர்ந்தெடுக்கவும்" },
+  selectStaffFirst: { en: "Select a staff member first" },
   // ---- PER-STAFF APPRAISAL TREND (Aug 2026) ----
   staffTrendTitle: { en: "Appraisal Trend", ta: "மதிப்பீட்டு போக்கு" },
   noSnapshotsYet: { en: "No saved snapshots yet for this staff.", ta: "இந்த ஊழியருக்கு இதுவரை சேமிக்கப்பட்ட ஸ்னாப்ஷாட் இல்லை." },
@@ -1717,6 +1719,9 @@ let MASTERS = { staff: [], activities: [], workflows: [] };
 // second time. Populated once MASTERS loads (see loadMasters()); starts
 // empty so nothing is mis-scoped before the first getMasters() response.
 let TEAM_WORKFLOW_IDS = [];
+function hasTeamWorkflows(activityId) {
+  return MASTERS.workflows.some(w => w['Activity ID'] === activityId && w['Status'] !== 'Inactive' && TEAM_WORKFLOW_IDS.indexOf(w['Workflow ID']) !== -1);
+}
 
 /* ============================================================
    API WRAPPER
@@ -3318,6 +3323,11 @@ async function loadAppraisal() {
       <td>${escapeHtml(a.staffName)}</td><td>${escapeHtml(a.designation)}</td><td>${escapeHtml(a.section)}</td><td>${a.entries}</td>
       <td>${fnum(a.totalKpiScore)}</td>
     </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('noApprovedRange')}</td></tr>`;
+}
+function ratingBadgeClass(r) {
+  if (r === 'Outstanding' || r === 'Excellent') return 'Approved';
+  if (r === 'Good' || r === 'Satisfactory') return 'Submitted';
+  return 'Rejected';
 }
 function exportAppraisal() {
   if (!lastAppraisal.length) { toast(T('runApprFirst')); return; }
