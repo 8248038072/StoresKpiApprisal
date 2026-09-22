@@ -187,6 +187,14 @@ tr:hover td{background:#FFFBF3;}
 .badge.InProgress{background:#FCEBC9; color:var(--warn);}
 .badge.Pending{background:#F5DAD5; color:var(--danger);}
 .badge.SelfApproved{background:#F5DAD5; color:var(--danger); border:1px solid var(--danger); margin-left:4px;}
+/* GO-LIVE FIX (audit item 1, Sep 2026): Verify Status badges. Deliberately
+   separate class names from the Leave/Memo '.badge.Pending' above (which
+   is red/danger, meaning "awaiting a decision that matters") - an
+   un-verified attendance day is a routine, low-urgency state, so it gets
+   the same amber as Submitted/InProgress instead. */
+.badge.VerifyPending{background:#FCEBC9; color:var(--warn);}
+.badge.Verified{background:#E1EBD9; color:var(--ok);}
+.badge.Disputed{background:#F5DAD5; color:var(--danger);}
 
 .memo-timeline{list-style:none; margin-top:12px;}
 .memo-timeline li{padding:4px 0 12px 22px; border-left:2px solid var(--coffee-300); position:relative; font-size:12.5px; color:var(--coffee-900);}
@@ -422,6 +430,36 @@ main.content{
     </div>
   </div>
 
+  <!-- MANAGER ATTENDANCE EDIT (Sep 2026): opened from the new Edit button on
+       each Attendance table row (Manager/HR only - see applyAttendanceRoleUI()).
+       Lets Manager/HR directly correct Status/Permission Hours/Remarks for a
+       staff member's day - calls the new api.editAttendance action. Staff
+       and Date are fixed (shown read-only in the subtitle) - a genuine
+       wrong-person/wrong-day correction is a Manager Dispute + the staff
+       re-marking, not an edit here. Same modal-box/form-row pattern as
+       Edit Training Record above. -->
+  <div id="editAttendanceModal" class="modal-overlay" style="display:none">
+    <div class="modal-box" style="max-width:480px">
+      <h3 data-i18n="editAttendance">Edit Attendance</h3>
+      <p id="eaSubtitle" style="font-size:13px;color:var(--coffee-700);margin-bottom:10px"></p>
+      <input type="hidden" id="eaStaffId">
+      <input type="hidden" id="eaDate">
+      <div class="form-row">
+        <div><label for="eaStatus" data-i18n="status">Status</label><select id="eaStatus">
+          <option value="Present">Present</option><option value="Absent">Absent</option>
+          <option value="Half Day">Half Day</option><option value="Permission">Permission</option>
+          <option value="Late">Late</option><option value="Early Leaving">Early Leaving</option>
+        </select></div>
+        <div><label for="eaPermHrs" data-i18n="permHrs">Permission Hrs</label><input type="number" id="eaPermHrs" min="0" max="24" step="0.5"></div>
+        <div style="grid-column:1/-1"><label for="eaRemarks" data-i18n="remarks">Remarks</label><input type="text" id="eaRemarks" maxlength="500"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button class="btn btn-outline" onclick="document.getElementById('editAttendanceModal').style.display='none'" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-brown" onclick="saveEditAttendance()" data-i18n="saveChanges">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <!-- STAFF APPRAISAL TREND (Aug 2026): reusable read-only per-staff Combined
        Final Score trend modal. Opened via openStaffTrend(staffId) from the
        HR Appraisal Scorecard - plots the same HR Appraisal History snapshots
@@ -620,7 +658,7 @@ main.content{
           <div class="form-row">
             <div><label for="attDate" data-i18n="date">Date</label><input type="date" id="attDate"></div>
             <div><label for="attStatus" data-i18n="status">Status</label>
-              <select id="attStatus"><option value="Present" data-i18n="present">Present</option><option value="Absent" data-i18n="absent">Absent</option><option value="Half Day" data-i18n="halfDay">Half Day</option><option value="Permission" data-i18n="permission">Permission</option><option value="Late" data-i18n="lateStatus">Late</option></select>
+              <select id="attStatus"><option value="Present" data-i18n="present">Present</option><option value="Absent" data-i18n="absent">Absent</option><option value="Half Day" data-i18n="halfDay">Half Day</option><option value="Permission" data-i18n="permission">Permission</option><option value="Late" data-i18n="lateStatus">Late</option><option value="Early Leaving" data-i18n="earlyLeavingStatus">Early Leaving</option></select>
             </div>
             <div><label for="attPermHrs" data-i18n="permHours">Permission Hours</label><input type="number" id="attPermHrs" min="0" step="0.5" value="0"></div>
           </div>
@@ -628,7 +666,28 @@ main.content{
           <button class="btn btn-brown" onclick="markAttendance()" data-i18n="saveAttendance">Save Attendance</button>
         </div>
         <div class="card">
-          <div class="table-wrap"><table id="attendanceTable"><thead><tr><th data-i18n="date">Date</th><th data-i18n="staff">Staff</th><th data-i18n="status">Status</th><th data-i18n="permHrs">Permission Hrs</th><th data-i18n="remarks">Remarks</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="attendanceTable"><thead><tr><th data-i18n="date">Date</th><th data-i18n="staff">Staff</th><th data-i18n="status">Status</th><th data-i18n="permHrs">Permission Hrs</th><th data-i18n="remarks">Remarks</th><th data-i18n="verifyStatus">Verify Status</th><th class="manager-hr-only" data-i18n="edit">Edit</th></tr></thead><tbody></tbody></table></div>
+        </div>
+
+        <!-- GO-LIVE FIX (audit item 1, Sep 2026): Manager/HR-only "Verify
+             Attendance" panel. Informational/audit-trail only, same as the
+             hr-edit-only convention above - hidden purely by
+             applyAttendanceRoleUI() toggling this class in JS; the real
+             gate is code.gs's verifyAttendance()/getPendingAttendanceVerification()
+             checking actorRole === 'Manager' || 'HR' server-side. Verifying
+             or disputing a day never changes its Status or its KPI/HR
+             score impact - see markAttendance()'s comments in code.gs. -->
+        <div class="card manager-hr-only" id="verifyAttendanceCard">
+          <h3 data-i18n="verifyAttendanceTitle">Verify Attendance</h3>
+          <p class="view-sub" data-i18n="verifyAttendanceSub">Check self-marked attendance against the Gate/Biometric register. This is a record-keeping check only - it does not change the Status or affect anyone's KPI score.</p>
+          <div class="form-row">
+            <div><label for="vaFrom" data-i18n="from">From</label><input type="date" id="vaFrom"></div>
+            <div><label for="vaTo" data-i18n="to">To</label><input type="date" id="vaTo"></div>
+            <div style="align-self:end;"><button class="btn btn-outline" onclick="loadPendingAttendanceVerification()" data-i18n="refresh">Refresh</button></div>
+          </div>
+          <div class="table-wrap"><table id="pendingVerificationTable"><thead><tr>
+            <th data-i18n="date">Date</th><th data-i18n="staff">Staff</th><th data-i18n="status">Status</th><th data-i18n="permHrs">Permission Hrs</th><th data-i18n="remarks">Remarks</th><th></th>
+          </tr></thead><tbody></tbody></table></div>
         </div>
       </section>
 
@@ -732,6 +791,11 @@ main.content{
             <div><label for="hrTo" data-i18n="to">To</label><input type="date" id="hrTo"></div>
             <div style="align-self:end;"><button class="btn btn-brown" onclick="runFullAppraisal()" data-i18n="runAppraisal">Run Appraisal</button></div>
             <div style="align-self:end;"><button class="btn btn-outline" onclick="runAutoHrPreparation()">⚙️ Auto Prepare HR Data</button></div>
+            <!-- GO-LIVE FIX (audit item 2, Sep 2026): visible to Manager too
+                 (not hr-edit-only) - code.gs's getHRReviewPendingList()
+                 already allows Manager or HR, since this is a read-only
+                 check, not an edit. -->
+            <div style="align-self:end;"><button class="btn btn-outline" onclick="checkHrReviewPending()" data-i18n="checkReviewPending">🔍 Check Review Pending</button></div>
             <div style="align-self:end;"><button class="btn btn-outline hr-edit-only" onclick="saveHrSnapshot()" data-i18n="saveSnapshot">💾 Save Snapshot</button></div>
             <div style="align-self:end;"><button class="btn btn-outline hr-edit-only" onclick="lockHrSnapshot()">🔒 Approve &amp; Lock Period</button></div>
             <div style="align-self:end;"><button class="btn btn-outline hr-edit-only" onclick="reopenHrSnapshot()">🔓 Re-open for Revision</button></div>
@@ -739,6 +803,14 @@ main.content{
           </div>
           <p class="li-target-info" data-i18n="periodLabelInfo">Period Label tags Recognition, Memo and Manual Score records for this cycle (e.g. "Jul-2026"). Saving a Snapshot lets the Department Dashboard build a Monthly/Yearly trend.</p>
           <p class="li-target-info">Once a period is <b>Approved &amp; Locked</b>, Save Snapshot will refuse to overwrite it - use Re-open for Revision first if it genuinely needs to change (reason required, fully audited).</p>
+          <!-- GO-LIVE FIX (audit item 2, Sep 2026): staff still on the
+               neutral Discipline/Policy/Behaviour auto-default because no
+               HR Manual Score row has been entered for them this period.
+               Filled by checkHrReviewPending() (on demand) and also by
+               lockHrSnapshot() (same list, returned as pendingReview) -
+               advisory only, never blocks Save Snapshot or Approve & Lock.
+               See getHRReviewPendingList()/lockAppraisalSnapshot() in code.gs. -->
+          <div id="hrReviewPendingResult"></div>
         </div>
 
         <div class="subtab-bar">
@@ -1115,7 +1187,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwaEVLmjV62i3zxd3XLZTPqVRlkIq7K1ctvbylQFQmscOXCLp72-MG2yrOTmVcm9t-Q/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1216,6 +1288,23 @@ const I18N = {
   halfDay: { en: "Half Day", ta: "அரை நாள்" },
   permission: { en: "Permission", ta: "அனுமதி" },
   lateStatus: { en: "Late", ta: "தாமதம்" },
+  earlyLeavingStatus: { en: "Early Leaving", ta: "முன்கூட்டி வெளியேறுதல்" },
+  verifyStatus: { en: "Verify Status", ta: "சரிபார்ப்பு நிலை" },
+  verifyAttendanceTitle: { en: "Verify Attendance", ta: "வருகையைச் சரிபார்" },
+  verifyAttendanceSub: { en: "Check self-marked attendance against the Gate/Biometric register. This is a record-keeping check only - it does not change the Status or affect anyone's KPI score.", ta: "பணியாளர் தானே பதிவு செய்த வருகையை Gate/Biometric பதிவுடன் ஒப்பிட்டுச் சரிபார்க்கவும். இது ஒரு பதிவுத் தணிக்கை மட்டுமே - இது Status-ஐ மாற்றாது, யாருடைய KPI மதிப்பெண்ணையும் பாதிக்காது." },
+  refresh: { en: "Refresh", ta: "புதுப்பி" },
+  verifyPending: { en: "Pending", ta: "நிலுவையில்" },
+  verified: { en: "Verified", ta: "சரிபார்க்கப்பட்டது" },
+  disputed: { en: "Disputed", ta: "மறுக்கப்பட்டது" },
+  verifyBtn: { en: "✓ Verify", ta: "✓ சரிபார்" },
+  disputeBtn: { en: "✗ Dispute", ta: "✗ மறு" },
+  disputeReasonPrompt: { en: "Reason for disputing this attendance record (optional):", ta: "இந்த வருகைப் பதிவை மறுப்பதற்கான காரணம் (விருப்பம்):" },
+  noPendingVerification: { en: "Nothing pending verification", ta: "சரிபார்க்க எதுவும் நிலுவையில் இல்லை" },
+  checkReviewPending: { en: "🔍 Check Review Pending", ta: "🔍 மதிப்பாய்வு நிலுவை பார்" },
+  reviewPendingTitle: { en: "HR Review Pending", ta: "HR மதிப்பாய்வு நிலுவையில்" },
+  reviewPendingNote: { en: "These staff have no HR Manual Score entered for this period yet, so Discipline / Policy Compliance / Behaviour are still on the neutral full-marks default. This is a WARNING only - it never blocks Save Snapshot or Approve & Lock.", ta: "இந்த மாதத்திற்கு இந்த பணியாளர்களுக்கு HR Manual Score இன்னும் பதிவு செய்யப்படவில்லை, எனவே Discipline / Policy Compliance / Behaviour இன்னும் நடுநிலை முழு மதிப்பெண் default-ல் உள்ளது. இது ஒரு எச்சரிக்கை மட்டுமே - இது Save Snapshot அல்லது Approve & Lock-ஐ தடுக்காது." },
+  reviewPendingNone: { en: "No one is pending HR review for this period.", ta: "இந்த மாதத்திற்கு HR மதிப்பாய்வு நிலுவையில் யாரும் இல்லை." },
+  lockedWithPendingReview: { en: "staff locked with Discipline/Policy/Behaviour still pending HR review", ta: "பேர் Discipline/Policy/Behaviour HR மதிப்பாய்வு நிலுவையிலேயே Lock செய்யப்பட்டனர்" },
   totalEmployees: { en: "Total Employees", ta: "மொத்த ஊழியர்கள்" },
   presentToday: { en: "Present Today", ta: "இன்று வருகை" },
   onLeaveToday: { en: "On Leave Today", ta: "இன்று விடுப்பு" },
@@ -1596,6 +1685,8 @@ const I18N = {
   trainingSaved: { en: "Training record saved" },
   trainingUpdated: { en: "Training record updated", ta: "பயிற்சி பதிவு புதுப்பிக்கப்பட்டது" },
   editTrainingRecord: { en: "Edit Training Record", ta: "பயிற்சி பதிவை திருத்து" },
+  editAttendance: { en: "Edit Attendance", ta: "வருகை பதிவை திருத்து" },
+  attendanceUpdated: { en: "Attendance updated", ta: "வருகை பதிவு புதுப்பிக்கப்பட்டது" },
   recordNotFound: { en: "Record not found", ta: "பதிவு கிடைக்கவில்லை" },
   saveChanges: { en: "Save Changes", ta: "மாற்றங்களை சேமி" },
   edit: { en: "Edit", ta: "திருத்து" },
@@ -1932,6 +2023,7 @@ function applyHRRoleUI() {
 
 function buildNav() {
   applyHRRoleUI();
+  applyAttendanceRoleUI();
   const items = NAV_ITEMS.filter(n => n.roles.includes(SESSION.role));
   const sidebar = document.getElementById('sidebar');
   const bottom = document.getElementById('bottomNav');
@@ -2265,6 +2357,7 @@ document.addEventListener('click', (e) => {
     case 'decideApprovalGroup': decideApprovalGroup(id, decision, btn); break;
     case 'openWorkflowEdit': openWorkflowEdit(id); break;
     case 'decideLeaveRequest': decideLeaveRequest(id, decision); break;
+    case 'verifyAttendanceRow': verifyAttendanceRow(id, btn.dataset.date, decision, btn); break;
     case 'deleteMonthlyTarget': deleteMonthlyTarget(id); break;
     case 'openTrainingDetails': openTrainingDetails(id); break;
     case 'openStaffTrend': openStaffTrend(id); break;
@@ -3099,6 +3192,11 @@ async function markAttendance() {
   } catch (e) { toast(e.message); }
 }
 
+// MANAGER ATTENDANCE EDIT (Sep 2026): rows keyed by "staffId|yyyy-MM-dd" so
+// openEditAttendance() can populate the modal instantly without a second
+// round-trip - same pattern TRAINING_REGISTER_ROWS uses above.
+let ATTENDANCE_ROWS_BY_KEY = {};
+
 async function loadAttendance() {
   if (!document.getElementById('attDate').value) {
     document.getElementById('attDate').value = localDateStr(new Date());
@@ -3107,12 +3205,129 @@ async function loadAttendance() {
   let rows;
   try { rows = await callApi('getAttendance', p); } catch (e) { toast(e.message); return; }
   rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
-  document.querySelector('#attendanceTable tbody').innerHTML = rows.slice(0, 50).map(r => `
+  ATTENDANCE_ROWS_BY_KEY = {};
+  const canEdit = SESSION.role === 'Manager' || SESSION.role === 'HR';
+  document.querySelector('#attendanceTable tbody').innerHTML = rows.slice(0, 50).map(r => {
+    const vs = verifyStatusDisplay(r['Verify Status']);
+    const key = r['Staff ID'] + '|' + localDateStr(new Date(r['Date']));
+    ATTENDANCE_ROWS_BY_KEY[key] = r;
+    const editCell = canEdit
+      ? `<td class="manager-hr-only"><button class="btn btn-outline btn-sm" onclick="openEditAttendance('${escapeHtml(key)}')" data-i18n="edit">Edit</button></td>`
+      : '';
+    return `
     <tr>
       <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
       <td><span class="badge ${safeStatusClass(r['Status'])}">${escapeHtml(r['Status'])}</span></td>
       <td>${Number(r['Permission Hours']) || 0}</td><td>${escapeHtml(r['Remarks'] || '')}</td>
-    </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('noEntriesYet')}</td></tr>`;
+      <td><span class="badge ${vs.cls}">${vs.label}</span></td>${editCell}
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" class="empty">${T('noEntriesYet')}</td></tr>`;
+  // GO-LIVE FIX (audit item 1, Sep 2026): keep the Verify Attendance panel
+  // (Manager/HR only - see applyAttendanceRoleUI()) in sync whenever this
+  // view loads/reloads, so a newly-marked or corrected day shows up there
+  // right away instead of only after a manual Refresh click.
+  if (SESSION.role !== 'Staff') loadPendingAttendanceVerification();
+}
+
+// MANAGER ATTENDANCE EDIT (Sep 2026): opens the Edit Attendance modal
+// pre-filled from the already-loaded row (see ATTENDANCE_ROWS_BY_KEY
+// above) - Staff/Date are fixed, only Status/Permission Hrs/Remarks are
+// editable (matches the backend contract - api.editAttendance()).
+function openEditAttendance(key) {
+  const r = ATTENDANCE_ROWS_BY_KEY[key];
+  if (!r) { toast(T('recordNotFound')); return; }
+  document.getElementById('eaStaffId').value = r['Staff ID'];
+  document.getElementById('eaDate').value = localDateStr(new Date(r['Date']));
+  document.getElementById('eaSubtitle').textContent = r['Staff Name'] + ' — ' + fmtDate(r['Date']);
+  document.getElementById('eaStatus').value = r['Status'] || 'Present';
+  document.getElementById('eaPermHrs').value = Number(r['Permission Hours']) || 0;
+  document.getElementById('eaRemarks').value = r['Remarks'] || '';
+  document.getElementById('editAttendanceModal').style.display = 'flex';
+}
+
+async function saveEditAttendance() {
+  const params = {
+    actorRole: SESSION.role, actorUserId: SESSION.userId, actorStaffId: SESSION.staffId,
+    staffId: document.getElementById('eaStaffId').value,
+    date: document.getElementById('eaDate').value,
+    status: document.getElementById('eaStatus').value,
+    permissionHours: document.getElementById('eaPermHrs').value,
+    remarks: document.getElementById('eaRemarks').value
+  };
+  try {
+    await callApi('editAttendance', params);
+    toast(T('attendanceUpdated'));
+    document.getElementById('editAttendanceModal').style.display = 'none';
+    loadAttendance();
+  } catch (e) { toast(e.message); }
+}
+
+// GO-LIVE FIX (audit item 1, Sep 2026): maps a raw 'Verify Status' cell
+// (or a blank one, for a row written before this column existed) to a
+// {cls, label} pair for the badge - deliberately separate from
+// safeStatusClass()/T(r['Status']) above so 'Pending' verification never
+// collides with the existing (differently-coloured) '.badge.Pending' used
+// for Leave/Memo decisions.
+function verifyStatusDisplay(raw) {
+  const v = raw || 'Pending';
+  if (v === 'Verified') return { cls: 'Verified', label: T('verified') };
+  if (v === 'Disputed') return { cls: 'Disputed', label: T('disputed') };
+  return { cls: 'VerifyPending', label: T('verifyPending') };
+}
+
+// GO-LIVE FIX (audit item 1, Sep 2026): shows/hides the "Verify Attendance"
+// panel for Manager/HR only - same convention as applyHRRoleUI() above.
+// UI convenience only; code.gs's verifyAttendance()/
+// getPendingAttendanceVerification() are the real, server-side gate.
+function applyAttendanceRoleUI() {
+  const canVerify = SESSION.role === 'Manager' || SESSION.role === 'HR';
+  document.querySelectorAll('.manager-hr-only').forEach(el => {
+    el.style.display = canVerify ? '' : 'none';
+  });
+}
+
+async function loadPendingAttendanceVerification() {
+  if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
+  const p = {};
+  const from = document.getElementById('vaFrom').value;
+  const to = document.getElementById('vaTo').value;
+  if (from) p.from = from;
+  if (to) p.to = to;
+  let rows;
+  try { rows = await callApi('getPendingAttendanceVerification', p); } catch (e) { toast(e.message); return; }
+  rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
+  document.querySelector('#pendingVerificationTable tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
+      <td><span class="badge ${safeStatusClass(r['Status'])}">${escapeHtml(r['Status'])}</span></td>
+      <td>${Number(r['Permission Hours']) || 0}</td><td>${escapeHtml(r['Remarks'] || '')}</td>
+      <td>
+        <button class="btn btn-brown btn-sm" data-action="verifyAttendanceRow" data-id="${escapeHtml(r['Staff ID'])}" data-date="${escapeHtml(r['Date'])}" data-decision="Verify">${T('verifyBtn')}</button>
+        <button class="btn btn-outline btn-sm" data-action="verifyAttendanceRow" data-id="${escapeHtml(r['Staff ID'])}" data-date="${escapeHtml(r['Date'])}" data-decision="Dispute">${T('disputeBtn')}</button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="6" class="empty">${T('noPendingVerification')}</td></tr>`;
+}
+
+// GO-LIVE FIX (audit item 1, Sep 2026): Verify or Dispute one attendance
+// row. Informational only - never touches Status, Permission Hours or
+// anything the automatic KPI/HR calculation reads for scoring (see
+// verifyAttendance() in code.gs).
+async function verifyAttendanceRow(staffId, date, decision, btn) {
+  let note = '';
+  if (decision === 'Dispute') note = prompt(T('disputeReasonPrompt')) || '';
+  if (btn) btn.disabled = true;
+  try {
+    await callApi('verifyAttendance', {
+      actorRole: SESSION.role, actorUserId: SESSION.userId, actorStaffId: SESSION.staffId,
+      staffId, date, decision, note
+    });
+    toast(decision === 'Dispute' ? T('disputed') : T('verified'));
+    loadPendingAttendanceVerification();
+    loadAttendance();
+  } catch (e) {
+    toast(e.message);
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* ============================================================
@@ -4255,6 +4470,38 @@ function _drawLineChartNow(canvasId, labels, values) {
   });
 }
 
+// GO-LIVE FIX (audit item 2, Sep 2026): renders the "HR Review Pending"
+// list (staff still on the Discipline/Policy/Behaviour neutral default
+// because no HR Manual Score row exists for them this period) into
+// #hrReviewPendingResult. Called both on-demand (checkHrReviewPending())
+// and right after a lock (lockHrSnapshot(), using the same list the
+// server already computed and returned as pendingReview - no second call
+// needed). Purely informational - see code.gs's getHRReviewPendingList()/
+// lockAppraisalSnapshot() comments: this never blocks anything.
+function renderHrReviewPending(list) {
+  const el = document.getElementById('hrReviewPendingResult');
+  if (!list || !list.length) {
+    el.innerHTML = `<div class="card" style="margin-top:10px;padding:10px 14px;"><span style="color:var(--ok);font-size:13px;">✅ ${T('reviewPendingNone')}</span></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card" style="margin-top:10px;padding:10px 14px;border-left:3px solid var(--warn);">
+    <div style="font-size:13px;color:var(--coffee-900);margin-bottom:6px;"><strong>⚠️ ${T('reviewPendingTitle')} (${list.length})</strong></div>
+    <div style="font-size:12px;color:var(--coffee-700);margin-bottom:8px;">${T('reviewPendingNote')}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      ${list.map(s => `<span class="badge VerifyPending">${escapeHtml(s.staffId)} - ${escapeHtml(s.staffName)}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
+async function checkHrReviewPending() {
+  const periodLabel = document.getElementById('hrPeriod').value.trim();
+  if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
+  try {
+    const list = await callApi('getHRReviewPendingList', hrActorParams({ periodLabel }));
+    renderHrReviewPending(list);
+  } catch (e) { toast(e.message); }
+}
+
 async function saveHrSnapshot() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
@@ -4270,7 +4517,13 @@ async function lockHrSnapshot() {
   if (!confirm('Approve and lock "' + periodLabel + '"? Once locked, Save Snapshot cannot overwrite it until it is re-opened.')) return;
   try {
     const r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel }));
-    toast('Locked ' + r.periodLabel + ' (' + r.staffCount + ' staff) as Approved.');
+    // GO-LIVE FIX (audit item 2, Sep 2026): "warning, not block" - the lock
+    // already went through (never held up by this); pendingReview (if any)
+    // is shown right here, from the same response, so HR sees it at the
+    // moment of locking without a second call.
+    renderHrReviewPending(r.pendingReview || []);
+    const warn = (r.pendingReview && r.pendingReview.length) ? ' - ' + r.pendingReview.length + ' ' + T('lockedWithPendingReview') : '';
+    toast('Locked ' + r.periodLabel + ' (' + r.staffCount + ' staff) as Approved.' + warn);
   } catch (e) { toast(e.message); }
 }
 
