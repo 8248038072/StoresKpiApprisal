@@ -1829,7 +1829,7 @@ function hasTeamWorkflows(activityId) {
 // loads and renders normally. Fix: retry a sessionExpired failure once after
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
-async function callApi(action, params, _retried) {
+async function callApi(action, params, _retried, _transportRetry) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
   }
@@ -1841,24 +1841,51 @@ async function callApi(action, params, _retried) {
   // longer has any way to "become" Manager/HR or act as another staff
   // member by editing these params.
   if (action !== 'login' && SESSION && SESSION.token) params.token = SESSION.token;
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
-    body: JSON.stringify({ action, params })
-  });
+  // TRANSPORT RETRY (flaky Apps Script echo bugfix): Apps Script's exec
+  // endpoint 302-redirects every call to a one-time
+  // script.googleusercontent.com/macros/echo?... URL that actually holds the
+  // response. Under load (several calls fired close together, e.g. on page
+  // load) that echo URL intermittently 404s even though the real execution
+  // succeeded - this is a known Apps Script quirk, not a deployment or code
+  // problem. A 404 body is HTML, so it lands in the JSON-parse-failure path
+  // below. transportAttempt counts ONLY these transport-level retries (fetch
+  // network errors + non-JSON/404 responses) and is separate from the
+  // existing sessionExpired attempt counter (_retried) further down.
+  const transportAttempt = _transportRetry || 0;
+  let res, rawText;
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
+      body: JSON.stringify({ action, params })
+    });
+    rawText = await res.text();
+  } catch (netErr) {
+    if (transportAttempt < 2) {
+      await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
+      return callApi(action, params, _retried, transportAttempt + 1);
+    }
+    throw new Error('Could not reach the server for "' + action + '" after retrying. Please check your connection and try again.');
+  }
   // DEFENSIVE PARSE (bugfix): res.json() used to be called directly here. If
   // Apps Script ever answers with an HTML page instead of our JSON - a stale/
   // wrong deployment URL, a login/permission interstitial, an execution
-  // timeout, or a quota page - res.json() throws a cryptic low-level error
+  // timeout, a quota page, or (most commonly) one of the flaky echo 404s
+  // described above - res.json() throws a cryptic low-level error
   // ("Unexpected token '<', "<!DOCTYPE "... is not valid JSON") that gives the
   // user no idea what actually went wrong. Read as text first and parse
-  // ourselves so a non-JSON response becomes one clear, actionable message.
-  const rawText = await res.text();
+  // ourselves so a non-JSON response becomes one clear, actionable message -
+  // but first silently retry a couple of times, since most of these are the
+  // transient echo 404 rather than a real problem.
   let out;
   try {
     out = JSON.parse(rawText);
   } catch (parseErr) {
-    throw new Error('Server returned an unexpected response (not JSON) for "' + action + '". ' +
+    if (transportAttempt < 2) {
+      await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
+      return callApi(action, params, _retried, transportAttempt + 1);
+    }
+    throw new Error('Server returned an unexpected response (not JSON) for "' + action + '" after retrying. ' +
       'This usually means the deployment URL is stale, or a permission/session issue on the Apps Script side. ' +
       'Try reloading the page; if it persists, check that API_URL matches the current Web App deployment.');
   }
