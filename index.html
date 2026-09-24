@@ -1187,7 +1187,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxJOi5m10nofsPmdl2yodxIrxpGgDiyQufySfuTNVDVORExeT5n-wW9l5-4xfuZHfi1/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1698,6 +1698,7 @@ const I18N = {
   staffTrendTitle: { en: "Appraisal Trend", ta: "மதிப்பீட்டு போக்கு" },
   noSnapshotsYet: { en: "No saved snapshots yet for this staff.", ta: "இந்த ஊழியருக்கு இதுவரை சேமிக்கப்பட்ட ஸ்னாப்ஷாட் இல்லை." },
   snapshotsSaved: { en: "snapshots saved", ta: "ஸ்னாப்ஷாட்கள் சேமிக்கப்பட்டன" },
+  targetQtyShort: { en: "approved / target qty", ta: "அங்கீகரிக்கப்பட்டது / இலக்கு அளவு" },
   vsPrevPeriod: { en: "vs previous period", ta: "முந்தைய காலத்தை விட" },
   viewMyTrend: { en: "📈 My HR Appraisal Trend", ta: "📈 எனது HR மதிப்பீட்டு போக்கு" },
   dashDateRangeLabel: { en: "Date Range", ta: "தேதி வரம்பு" },
@@ -2493,6 +2494,12 @@ async function loadDashboard() {
     trendHtml = `<div style="font-size:12px;margin-top:2px;color:${color}">${arrow} ${fnum(Math.abs(d.trend.change || 0))} ${T('vsPrevPeriod')}</div>`;
   }
 
+  // Total KPI % is Approved Qty / Monthly Target - show the two quantities behind it.
+  let qtyHtml = '';
+  if (d.totalTargetQty !== null && d.totalTargetQty !== undefined) {
+    qtyHtml = `<div style="font-size:12px;margin-top:2px;opacity:.85">${fnum(d.totalApprovedQty, 0)} / ${fnum(d.totalTargetQty, 0)} ${T('targetQtyShort')}</div>`;
+  }
+
   // Card labels say "(MTD)" only in "This Month" mode - showing that
   // wording while actually displaying a 60-day window would be
   // misleading, so swap to the generic (no-suffix) label in that mode.
@@ -2501,7 +2508,7 @@ async function loadDashboard() {
 
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card"><div class="label">${entriesLabel}</div><div class="value">${d.totalEntries}</div></div>
-    <div class="stat-card alt"><div class="label">${kpiPctLabel}</div><div class="value">${fnum(d.totalKpiPct)}%</div>${trendHtml}</div>
+    <div class="stat-card alt"><div class="label">${kpiPctLabel}</div><div class="value">${fnum(d.totalKpiPct)}%</div>${qtyHtml}${trendHtml}</div>
     <div class="stat-card"><div class="label">${T('pendingApprovals')}</div><div class="value">${d.pendingApprovals}</div></div>
     <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${SESSION.role}</div></div>
   `;
