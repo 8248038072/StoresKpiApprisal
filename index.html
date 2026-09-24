@@ -513,9 +513,9 @@ main.content{
         </div>
 
         <div class="grid grid-4" id="dashStats"></div>
-        <div class="grid grid-2">
-          <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiByStaff">KPI Score by Staff</h3><canvas id="chartStaff"></canvas></div>
-          <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiByActivity">KPI Score by Activity</h3><canvas id="chartActivity"></canvas></div>
+        <div class="grid grid-2" id="dashPctCharts">
+          <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiPctByStaff">Achievement % by Staff</h3><canvas id="chartStaffPct"></canvas></div>
+          <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiPctByActivity">Achievement % by Activity</h3><canvas id="chartActivityPct"></canvas></div>
         </div>
       </section>
 
@@ -1235,6 +1235,8 @@ const I18N = {
   teamTag: { en: "Together &middot; Focused &middot; Committed &middot; Successful", ta: "ஒன்றாக &middot; கவனத்துடன் &middot; அர்ப்பணிப்புடன் &middot; வெற்றியுடன்" },
   kpiByStaff: { en: "KPI Score by Staff", ta: "பணியாளர் வாரியான KPI மதிப்பெண்" },
   kpiByActivity: { en: "KPI Score by Activity", ta: "செயல்பாடு வாரியான KPI மதிப்பெண்" },
+  kpiPctByStaff: { en: "Achievement % by Staff", ta: "பணியாளர் வாரியான இலக்கு சாதனை %" },
+  kpiPctByActivity: { en: "Achievement % by Activity", ta: "செயல்பாடு வாரியான இலக்கு சாதனை %" },
   regTitle: { en: "Working Register", ta: "பணி பதிவேடு" },
   regSub: { en: "Pick the Date and Activity, then tick the workflows you performed. Team workflows can be entered multiple times on the same date for separate jobs. Monthly Target, Completed and Balance are shown live.", ta: "தேதி மற்றும் செயல்பாட்டை ஒருமுறை தேர்ந்தெடுத்து, நீங்கள் செய்த ஒவ்வொரு பணிப்பாய்வையும் தேர்வு செய்யவும். மாதாந்திர இலக்கு, முடிக்கப்பட்டது மற்றும் மீதமுள்ள இலக்கு நேரடியாக காட்டப்படும்." },
   date: { en: "Date", ta: "தேதி" },
@@ -2503,8 +2505,11 @@ async function loadDashboard() {
     <div class="stat-card"><div class="label">${T('pendingApprovals')}</div><div class="value">${d.pendingApprovals}</div></div>
     <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${SESSION.role}</div></div>
   `;
-  drawBarChart('chartStaff', d.byStaff, '#6F4E37');
-  drawBarChart('chartActivity', d.byActivity, '#9C6B45');
+  // Achievement % charts (the old marks charts were removed). A response
+  // cached before the backend update may not carry these fields yet, so fall
+  // back to empty objects instead of failing.
+  drawPctBarChart('chartStaffPct', d.staffPct || {}, null);
+  drawPctBarChart('chartActivityPct', d.activityPct || {}, d.activityPctDetail || {});
 }
 
 /* ------------------------------------------------------------
@@ -2533,6 +2538,56 @@ let chartRefs = {};
 // already loaded), then run the original drawing code unchanged.
 function drawBarChart(canvasId, dataObj, color) {
   ensureChartJs().then(() => _drawBarChartNow(canvasId, dataObj, color)).catch(e => console.warn(e.message));
+}
+// Achievement % bar chart: fixed 0-100 axis, % printed on each bar, bar colour
+// by band (below 60 red, 60-89 coffee, 90+ green). `detail` (optional) maps a
+// label to [{name, unit, target, actual, pct}] and is shown in the tooltip.
+function drawPctBarChart(canvasId, dataObj, detail) {
+  ensureChartJs().then(() => _drawPctBarChartNow(canvasId, dataObj, detail)).catch(e => console.warn(e.message));
+}
+function _drawPctBarChartNow(canvasId, dataObj, detail) {
+  const labels = Object.keys(dataObj || {});
+  const values = labels.map(k => Number(dataObj[k]) || 0);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (chartRefs[canvasId]) chartRefs[canvasId].destroy();
+  const colors = values.map(v => v >= 90 ? '#2e7d32' : (v >= 60 ? '#9C6B45' : '#c62828'));
+  const valueLabels = {
+    id: 'pctValueLabels',
+    afterDatasetsDraw(chart) {
+      const c = chart.ctx;
+      c.save();
+      c.font = '600 11px sans-serif';
+      c.textAlign = 'center';
+      c.fillStyle = '#3e2a1c';
+      chart.getDatasetMeta(0).data.forEach((bar, i) => {
+        c.fillText(fnum(values[i]) + '%', bar.x, bar.y - 4);
+      });
+      c.restore();
+    }
+  };
+  chartRefs[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 5 }] },
+    options: {
+      layout: { padding: { top: 18 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: item => fnum(item.parsed.y) + '%',
+            afterBody: items => {
+              const rows = detail && detail[items[0].label];
+              if (!rows || !rows.length) return [];
+              return rows.map(r => r.name + ': ' + fnum(r.actual) + ' / ' + fnum(r.target) + ' ' + (r.unit || '') + ' (' + fnum(r.pct) + '%)');
+            }
+          }
+        }
+      },
+      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } }
+    },
+    plugins: [valueLabels]
+  });
 }
 function drawGroupedBarChart(canvasId, labels, datasets) {
   ensureChartJs().then(() => _drawGroupedBarChartNow(canvasId, labels, datasets)).catch(e => console.warn(e.message));
