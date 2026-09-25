@@ -1187,7 +1187,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxJOi5m10nofsPmdl2yodxIrxpGgDiyQufySfuTNVDVORExeT5n-wW9l5-4xfuZHfi1/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -3022,11 +3022,6 @@ async function loadRegister() {
   if (!SESSION) return;
   populateRegActivitySelect();
   loadMyDrafts();
-  await loadCurrentMonthTargets();
-  if (!SESSION) return; // session expired during the await above
-  // if a checklist is already showing (e.g. user switches views and back),
-  // refresh it so the KPI Target hints pick up the newly loaded targets
-  if (document.getElementById('regActivity').value) renderWorkflowChecklist();
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
   // PERF (Sep 2026, item 3): only fetch the last REGISTER_VISIBLE_DAYS days.
   // The table shows at most 50 rows anyway, but the server used to send the
@@ -3034,9 +3029,27 @@ async function loadRegister() {
   // server-side against the full approved set, so scores are unaffected.
   const regFrom = new Date(); regFrom.setDate(regFrom.getDate() - REGISTER_VISIBLE_DAYS);
   p.from = localDateStr(regFrom);
+  // PERF FIX (Sep 2026, load-time audit): loadCurrentMonthTargets() and
+  // getWorkingRegister are independent of each other (current-month target
+  // hints vs. the register rows themselves), but this used to await them
+  // one after the other - each Apps Script round trip costs ~1-3s on its
+  // own, so doing them sequentially roughly doubled this page's wait.
+  // Firing both together cuts this page's load time to whichever of the
+  // two is slower, instead of the sum of both. loadCurrentMonthTargets()
+  // never throws (it catches its own errors internally), so only the
+  // getWorkingRegister call needs the try/catch below.
   let rows;
-  try { rows = await callApi('getWorkingRegister', p); } catch (e) { toast(e.message); return; }
-  if (!SESSION) return;
+  try {
+    const results = await Promise.all([
+      loadCurrentMonthTargets(),
+      callApi('getWorkingRegister', p)
+    ]);
+    rows = results[1];
+  } catch (e) { toast(e.message); return; }
+  if (!SESSION) return; // session expired during the await above
+  // if a checklist is already showing (e.g. user switches views and back),
+  // refresh it so the KPI Target hints pick up the newly loaded targets
+  if (document.getElementById('regActivity').value) renderWorkflowChecklist();
   rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
   const tbody = document.querySelector('#registerTable tbody');
   // Co-Staff/Team for a row = the other participants sharing its Team Ref
@@ -3194,10 +3207,15 @@ async function decideApprovalGroup(groupId, decision, btn) {
    ============================================================ */
 let EDIT_WF_ROWS = [];
 async function loadWorkflowEditList() {
+  // PERF FIX (Sep 2026, load-time audit): these used to be two sequential
+  // callApi() round trips (getWorkflowsFresh then validateWeightages) even
+  // though neither depends on the other - that doubled this page's wait.
+  // Backend now returns both from one merged action in a single request.
   let rows, validation;
   try {
-    rows = await callApi('getWorkflowsFresh', {});
-    validation = await callApi('validateWeightages', {});
+    const d = await callApi('getWorkflowsFreshWithValidation', {});
+    rows = d.workflows;
+    validation = d.validation;
   } catch (e) { toast(e.message); return; }
   EDIT_WF_ROWS = rows;
 
@@ -3291,6 +3309,12 @@ async function loadAttendance() {
     document.getElementById('attDate').value = localDateStr(new Date());
   }
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
+  // PERF FIX (Sep 2026, load-time audit): this used to be called AFTER the
+  // main table below had already finished loading, so the Verify panel's
+  // own round trip only started once getAttendance fully completed. It's a
+  // separate, independent call - starting it here means both requests are
+  // in flight together instead of one after the other.
+  if (SESSION.role !== 'Staff') loadPendingAttendanceVerification();
   let rows;
   try { rows = await callApi('getAttendance', p); } catch (e) { toast(e.message); return; }
   rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
@@ -3311,11 +3335,12 @@ async function loadAttendance() {
       <td><span class="badge ${vs.cls}">${vs.label}</span></td>${editCell}
     </tr>`;
   }).join('') || `<tr><td colspan="7" class="empty">${T('noEntriesYet')}</td></tr>`;
-  // GO-LIVE FIX (audit item 1, Sep 2026): keep the Verify Attendance panel
+  // GO-LIVE FIX (audit item 1, Sep 2026): keeps the Verify Attendance panel
   // (Manager/HR only - see applyAttendanceRoleUI()) in sync whenever this
   // view loads/reloads, so a newly-marked or corrected day shows up there
-  // right away instead of only after a manual Refresh click.
-  if (SESSION.role !== 'Staff') loadPendingAttendanceVerification();
+  // right away instead of only after a manual Refresh click. (Call moved to
+  // the top of this function - see PERF FIX comment there - so it now runs
+  // concurrently with the main table's fetch instead of after it.)
 }
 
 // MANAGER ATTENDANCE EDIT (Sep 2026): opens the Edit Attendance modal
