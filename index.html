@@ -625,17 +625,18 @@ main.content{
       <!-- EDIT WORKFLOW (Manager only) -->
       <section class="view" id="view-editWorkflow">
         <h2 class="view-title" data-i18n="editWorkflowTitle">Edit Workflow</h2>
-        <p class="view-sub" data-i18n="editWorkflowSub">Change Target, Weightage %, Expected Output or Status here — never edit the Workflow Master sheet directly. Max Score is read-only and always mirrors Weightage %. Every change is logged to Audit Log.</p>
+        <p class="view-sub" data-i18n="editWorkflowSub">Change Target, Weightage %, Unit, Expected Output or Status here — never edit the Workflow Master sheet directly. Max Score is read-only and always mirrors Weightage %. Every change is logged to Audit Log. Unit changes only apply to new entries going forward — past entries keep the Unit they were recorded with.</p>
         <div id="weightageWarningBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;color:#7a5b00;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
         <div class="card">
           <div class="table-wrap"><table id="editWfTable"><thead><tr>
-            <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th></th>
+            <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th></th>
           </tr></thead><tbody></tbody></table></div>
         </div>
 
         <div class="card" id="editWfFormCard" style="display:none;">
           <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)"><span data-i18n="editing">Editing</span>: <span id="editWfName"></span></h3>
           <div class="form-row">
+            <div><label for="editWfUnit" data-i18n="unit">Unit</label><input type="text" id="editWfUnit" list="editWfUnitOptions" placeholder="e.g. Kg, Nos, Bills, Lines"><datalist id="editWfUnitOptions"></datalist></div>
             <div><label for="editWfTarget" data-i18n="perEntryTarget">Per-Entry Target</label><input type="number" id="editWfTarget"></div>
             <div><label for="editWfWeightage" data-i18n="weightagePct">Weightage %</label><input type="number" step="0.01" id="editWfWeightage" oninput="document.getElementById('editWfMaxScore').value=this.value"></div>
             <div><label for="editWfMaxScore" data-i18n="maxScoreReadonly">Max Score (read-only — always equals Weightage %)</label><input type="number" step="0.01" id="editWfMaxScore" disabled></div>
@@ -1441,6 +1442,7 @@ const I18N = {
   name: { en: "Name", ta: "பெயர்" },
   workflowMaster: { en: "Activity &amp; Workflow Master", ta: "செயல்பாடு &amp; பணிப்பாய்வு மூலத் தரவு" },
   unit: { en: "Unit", ta: "அலகு" },
+  unitRequired: { en: "Unit cannot be empty", ta: "Unit காலியாக இருக்கக்கூடாது" },
   weightagePct: { en: "Weightage %", ta: "எடை %" },
   maxScore: { en: "Max Score", ta: "அதிகபட்ச மதிப்பெண்" },
   maxScoreReadonly: { en: "Max Score (read-only — always equals Weightage %)", ta: "அதிகபட்ச மதிப்பெண் (Read-Only — எப்போதும் Weightage %-க்கு சமம்)" },
@@ -2710,14 +2712,31 @@ function getEffectiveTargetDisplay(actId, w) {
 let CURRENT_ACTIVITY_ID = '';
 let CURRENT_ACTIVITY_WFS = [];
 
-// Entry point wired to <select id="regActivity" onchange="renderWorkflowChecklist()">.
+// Wired to <select id="regActivity" onchange="renderWorkflowChecklist()">.
 // Resolves which Workflows belong to the selected Activity, then hands off
 // to renderChecklistRows() to actually build the checklist markup.
+// SECTION-WISE FILTER (Sep 2026): a Workflow's Master "Sections" field
+// (comma-separated Section IDs, or "All"/blank = every Section) now also
+// restricts what a logged-in Staff sees here, so Staff never gets offered a
+// Workflow that belongs to a different Section. Manager/HR keep seeing every
+// Workflow for the Activity unfiltered, since they may log or assign an
+// entry on behalf of any Staff across Sections.
+function getSessionSectionId() {
+  const s = MASTERS.staff.find(x => x['Staff ID'] === SESSION.staffId);
+  return s ? (s['Section'] || '') : '';
+}
+function workflowAppliesToSection(w, sectionId) {
+  const raw = (w['Sections'] || '').trim();
+  if (!raw || raw.toLowerCase() === 'all') return true; // unset/"All" = every Section
+  return raw.split(',').map(x => x.trim()).indexOf(sectionId) !== -1;
+}
 function renderWorkflowChecklist() {
   const activityId = document.getElementById('regActivity').value;
   CURRENT_ACTIVITY_ID = activityId;
+  const mySection = getSessionSectionId();
   CURRENT_ACTIVITY_WFS = activityId
-    ? MASTERS.workflows.filter(w => w['Activity ID'] === activityId && w['Status'] !== 'Inactive')
+    ? MASTERS.workflows.filter(w => w['Activity ID'] === activityId && w['Status'] !== 'Inactive'
+        && (SESSION.role !== 'Staff' || workflowAppliesToSection(w, mySection)))
     : [];
   renderChecklistRows();
 }
@@ -2755,7 +2774,11 @@ function renderChecklistRows() {
   const list = document.getElementById('wfChecklist');
   const wrap = document.getElementById('wfChecklistWrap');
   const wfs = CURRENT_ACTIVITY_WFS;
-  const coStaffOptions = MASTERS.staff.filter(s => s['Staff ID'] !== SESSION.staffId && s['Status'] !== 'Inactive');
+  // CO-STAFF, SAME SECTION ONLY (Sep 2026): a shared/team workflow entry can
+  // only bring in co-staff from the logger's own Section — never a different
+  // Section — regardless of who is logging it (Staff or Manager).
+  const mySection = getSessionSectionId();
+  const coStaffOptions = MASTERS.staff.filter(s => s['Staff ID'] !== SESSION.staffId && s['Status'] !== 'Inactive' && s['Section'] === mySection);
   const isManager = SESSION.role === 'Manager';
 
   const loggedByLine = document.getElementById('regLoggedByLine');
@@ -3231,12 +3254,20 @@ async function loadWorkflowEditList() {
   document.querySelector('#editWfTable tbody').innerHTML = rows.map(w => `
     <tr>
       <td>${escapeHtml(w['Workflow Name'])}</td><td>${escapeHtml(w['KPI Name'])}</td>
+      <td>${escapeHtml(w['Unit'])}</td>
       <td>${escapeHtml(w['Target'])}</td><td>${escapeHtml(w['Weightage %'])}</td><td>${escapeHtml(w['Max Score'])}</td>
       <td>${escapeHtml(w['Expected Output'])}</td>
       <td><span class="badge ${safeStatusClass(w['Status'])}">${escapeHtml(w['Status'])}</span></td>
       <td>${escapeHtml(w['Sections'] || '')}</td>
       <td><button class="btn btn-outline btn-sm" data-action="openWorkflowEdit" data-id="${escapeHtml(w['Workflow ID'])}">${T('editBtn')}</button></td>
-    </tr>`).join('') || `<tr><td colspan="9" class="empty">${T('noWorkflowsFound')}</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="10" class="empty">${T('noWorkflowsFound')}</td></tr>`;
+
+  // Populate the Unit datalist with every distinct Unit already in use, so
+  // Manager can pick an existing one (avoids accidental near-duplicate
+  // spellings like "Kg" vs "kgs") or still type a brand-new one freely.
+  const distinctUnits = [...new Set(rows.map(w => w['Unit']).filter(Boolean))].sort();
+  document.getElementById('editWfUnitOptions').innerHTML =
+    distinctUnits.map(u => `<option value="${escapeHtml(u)}"></option>`).join('');
 }
 
 function openWorkflowEdit(workflowId) {
@@ -3245,6 +3276,7 @@ function openWorkflowEdit(workflowId) {
   document.getElementById('editWfFormCard').style.display = 'block';
   document.getElementById('editWfFormCard').dataset.workflowId = workflowId;
   document.getElementById('editWfName').textContent = w['Workflow Name'];
+  document.getElementById('editWfUnit').value = w['Unit'] || '';
   document.getElementById('editWfTarget').value = w['Target'];
   document.getElementById('editWfWeightage').value = w['Weightage %'];
   document.getElementById('editWfMaxScore').value = w['Weightage %'];
@@ -3262,7 +3294,9 @@ function closeWorkflowEdit() {
 async function saveWorkflowEdit() {
   const workflowId = document.getElementById('editWfFormCard').dataset.workflowId;
   if (!workflowId) return;
+  if (!document.getElementById('editWfUnit').value.trim()) { toast(T('unitRequired')); return; }
   const fields = {
+    'Unit': document.getElementById('editWfUnit').value.trim(),
     'Target': document.getElementById('editWfTarget').value,
     'Weightage %': document.getElementById('editWfWeightage').value,
     'Expected Output': document.getElementById('editWfExpectedOutput').value,
