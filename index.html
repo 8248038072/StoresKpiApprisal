@@ -540,7 +540,7 @@ main.content{
             </div>
             <div id="wfChecklist"></div>
             <div class="form-row" style="margin-top:12px;">
-              <div><label for="regRemarks" data-i18n="remarksOpt">Remarks (optional)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
+              <div><label for="regRemarks" data-i18n="remarksReq">Remarks (required to Submit)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
             </div>
           </div>
 
@@ -1247,6 +1247,8 @@ const I18N = {
   selectAll: { en: "Select All", ta: "அனைத்தையும் தேர்ந்தெடு" },
   clearAll: { en: "Clear All", ta: "அனைத்தையும் அழி" },
   remarksOpt: { en: "Remarks (optional)", ta: "குறிப்புகள் (விருப்பம்)" },
+  remarksReq: { en: "Remarks (required to Submit)", ta: "குறிப்புகள் (Submit செய்ய கட்டாயம்)" },
+  remarksRequiredFor: { en: "Remarks is mandatory before Submit. Please enter Remarks for:", ta: "Submit செய்யும் முன் குறிப்புகள் கட்டாயம். இவற்றுக்கு குறிப்புகளை உள்ளிடவும்:" },
   saveDraft: { en: "🟡 Save Draft", ta: "🟡 வரைவைச் சேமி" },
   submitBtn: { en: "🟢 Submit", ta: "🟢 சமர்ப்பி" },
   myDrafts: { en: "My Draft Entries", ta: "எனது வரைவு பதிவுகள்" },
@@ -2803,7 +2805,7 @@ function renderChecklistRows() {
       <div class="wf-count-box form-row" style="display:none;">
         <div><label for="wfCount_${escapeHtml(w['Workflow ID'])}">Count</label><input type="number" id="wfCount_${escapeHtml(w['Workflow ID'])}" class="wf-count" min="0" step="1" value="0"></div>
         <div><label for="wfUnit_${escapeHtml(w['Workflow ID'])}">Unit</label><input type="text" id="wfUnit_${escapeHtml(w['Workflow ID'])}" value="${escapeHtml(w['Unit'])}" readonly></div>
-        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Optional"></div>
+        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks *</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Required to Submit"></div>
       </div>
       ${isTeam ? `
       <div class="reg-co-staff-wrap" style="display:none;margin-top:10px;">
@@ -2844,7 +2846,7 @@ async function saveWorkingEntries(mode) {
     // for them and the backend falls back to crediting the logged-in user.
     const assignSel = row.querySelector('.reg-assign-staff');
     const assignedStaffId = (!isTeam && assignSel) ? assignSel.value : '';
-    // Per-workflow Remarks (optional) - falls back to the shared "Remarks"
+    // Per-workflow Remarks (MANDATORY on Submit) - falls back to the shared "Remarks"
     // field at the bottom of the form if this row's own Remarks is blank.
     const rowRemarksEl = row.querySelector('.wf-remarks');
     const remarks = (rowRemarksEl && rowRemarksEl.value) ? rowRemarksEl.value : sharedRemarks;
@@ -2861,6 +2863,20 @@ async function saveWorkingEntries(mode) {
   if (zeroCountWfs.length) {
     toast(T('enterCountAbove0') + ' ' + zeroCountWfs.join(', '));
     return;
+  }
+  // MANDATORY REMARKS: on Submit, every ticked workflow must have Remarks
+  // (its own, or the shared one at the bottom). Draft saving stays free.
+  // Checked BEFORE addWorkingEntries so a failed check never leaves a
+  // half-created Draft behind. The server re-checks in submitEntryGroup().
+  if (mode === 'Submitted') {
+    const noRemarksWfs = lines.filter(l => !String(l.remarks || '').trim()).map(l => {
+      const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId);
+      return wf ? wf['Workflow Name'] : l.workflowId;
+    });
+    if (noRemarksWfs.length) {
+      toast(T('remarksRequiredFor') + ' ' + noRemarksWfs.join(', '));
+      return;
+    }
   }
   try {
     const r = await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines });
@@ -3005,7 +3021,7 @@ async function openEditDraft(groupId) {
         <div style="font-size:12px;color:var(--coffee-500);margin-bottom:6px;">Staff: <strong>${escapeHtml(wg.staffName)}</strong> &middot; Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
         <div class="form-row">
           <div><label for="edActual_${escapeHtml(wg.workflowId)}">Actual</label><input type="number" id="edActual_${escapeHtml(wg.workflowId)}" min="0" class="edit-draft-actual" data-wfid="${escapeHtml(wg.workflowId)}" value="${wg.actual}"></div>
-          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
+          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks *</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
         </div>
       </div>
     `).join('')}
