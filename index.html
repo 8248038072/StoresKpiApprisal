@@ -540,7 +540,7 @@ main.content{
             </div>
             <div id="wfChecklist"></div>
             <div class="form-row" style="margin-top:12px;">
-              <div><label for="regRemarks" data-i18n="remarksOpt">Remarks (optional)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
+              <div><label for="regRemarks" data-i18n="remarksReq">Remarks (required to Submit)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
             </div>
           </div>
 
@@ -1247,6 +1247,8 @@ const I18N = {
   selectAll: { en: "Select All", ta: "அனைத்தையும் தேர்ந்தெடு" },
   clearAll: { en: "Clear All", ta: "அனைத்தையும் அழி" },
   remarksOpt: { en: "Remarks (optional)", ta: "குறிப்புகள் (விருப்பம்)" },
+  remarksReq: { en: "Remarks (required to Submit)", ta: "குறிப்புகள் (Submit செய்ய கட்டாயம்)" },
+  remarksRequiredFor: { en: "Remarks is mandatory before Submit. Please enter Remarks for:", ta: "Submit செய்யும் முன் குறிப்புகள் கட்டாயம். இவற்றுக்கு குறிப்புகளை உள்ளிடவும்:" },
   saveDraft: { en: "🟡 Save Draft", ta: "🟡 வரைவைச் சேமி" },
   submitBtn: { en: "🟢 Submit", ta: "🟢 சமர்ப்பி" },
   myDrafts: { en: "My Draft Entries", ta: "எனது வரைவு பதிவுகள்" },
@@ -1834,11 +1836,32 @@ function hasTeamWorkflows(activityId) {
 // loads and renders normally. Fix: retry a sessionExpired failure once after
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
+const _apiCache = new Map();
+const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getTargetDashboard','getDisciplinaryActions','getMasters']);
 async function callApi(action, params, _retried, _transportRetry) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
   }
   params = params || {};
+  // SPEED (Sep 2026): short browser-side cache for read calls, so going back to a
+  // page opened in the last 60s is instant. ANY write clears it, so a user never
+  // sees data older than their own last action.
+  const _ck = action + JSON.stringify(params);
+  const _isRead = /^get/.test(action);
+  if (!_retried && !_transportRetry) {
+    if (_isRead && API_CACHEABLE.has(action)) {
+      const hit = _apiCache.get(_ck);
+      if (hit && Date.now() - hit.t < 60000) return JSON.parse(hit.v);
+    } else if (!_isRead && action !== 'login' && action !== 'ping' && action !== 'warm') {
+      _apiCache.clear();
+    }
+  }
+  // RETRY SAFETY (Sep 2026): every write carries a one-time request id, reused on
+  // automatic retries. The server remembers it, so a retry after an echo-404 never
+  // saves the same entry twice.
+  if (!_isRead && action !== 'login' && !params.reqId) {
+    params.reqId = Date.now() + '_' + Math.random().toString(36).slice(2);
+  }
   // SECURITY (see code.gs handle()): every action except 'login' must carry
   // the session token issued at login - the backend uses it to look up the
   // real user/role server-side and ignores/overwrites any actorRole,
@@ -1858,14 +1881,25 @@ async function callApi(action, params, _retried, _transportRetry) {
   // existing sessionExpired attempt counter (_retried) further down.
   const transportAttempt = _transportRetry || 0;
   let res, rawText;
+  // TIMEOUT (Sep 2026): an Apps Script call that hits the echo-404 can hang ~15s
+  // before failing. Cancel a stuck call early and let the retry below run.
+  // Reads: 8s (+6s per retry). Writes: 30s (safe - the server de-duplicates by reqId).
+  // login and backup are never cancelled.
+  const _noAbort = (action === 'login' || action === 'runBackupNow');
+  const _ctrl = new AbortController();
+  const _abortTimer = _noAbort ? null :
+    setTimeout(() => _ctrl.abort(), (_isRead ? 8000 : 30000) + transportAttempt * 6000);
   try {
     res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
-      body: JSON.stringify({ action, params })
+      body: JSON.stringify({ action, params }),
+      signal: _ctrl.signal
     });
     rawText = await res.text();
+    if (_abortTimer) clearTimeout(_abortTimer);
   } catch (netErr) {
+    if (_abortTimer) clearTimeout(_abortTimer);
     if (transportAttempt < 2) {
       await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
       return callApi(action, params, _retried, transportAttempt + 1);
@@ -1927,6 +1961,7 @@ async function callApi(action, params, _retried, _transportRetry) {
   // no mouse/keyboard involved) - keep the idle clock in sync with what the
   // backend just did (resolveSession() there already refreshed the TTL).
   if (typeof markActivity === 'function' && action !== 'login') lastActivityAt = Date.now();
+  if (_isRead && API_CACHEABLE.has(action)) _apiCache.set(_ck, { t: Date.now(), v: JSON.stringify(out.data === undefined ? null : out.data) });
   return out.data;
 }
 
@@ -2006,6 +2041,7 @@ function logout() {
   document.getElementById('notifBellWrap').style.display = 'none';
   stopIdleWatch();
   SESSION = null;
+  _apiCache.clear();
   hrInited = false;
   sessionStorage.removeItem('kpi_session');
   // Best-effort - invalidate the token server-side too, so it can't still be
@@ -2803,7 +2839,7 @@ function renderChecklistRows() {
       <div class="wf-count-box form-row" style="display:none;">
         <div><label for="wfCount_${escapeHtml(w['Workflow ID'])}">Count</label><input type="number" id="wfCount_${escapeHtml(w['Workflow ID'])}" class="wf-count" min="0" step="1" value="0"></div>
         <div><label for="wfUnit_${escapeHtml(w['Workflow ID'])}">Unit</label><input type="text" id="wfUnit_${escapeHtml(w['Workflow ID'])}" value="${escapeHtml(w['Unit'])}" readonly></div>
-        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Optional"></div>
+        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks *</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Required to Submit"></div>
       </div>
       ${isTeam ? `
       <div class="reg-co-staff-wrap" style="display:none;margin-top:10px;">
@@ -2844,7 +2880,7 @@ async function saveWorkingEntries(mode) {
     // for them and the backend falls back to crediting the logged-in user.
     const assignSel = row.querySelector('.reg-assign-staff');
     const assignedStaffId = (!isTeam && assignSel) ? assignSel.value : '';
-    // Per-workflow Remarks (optional) - falls back to the shared "Remarks"
+    // Per-workflow Remarks (MANDATORY on Submit) - falls back to the shared "Remarks"
     // field at the bottom of the form if this row's own Remarks is blank.
     const rowRemarksEl = row.querySelector('.wf-remarks');
     const remarks = (rowRemarksEl && rowRemarksEl.value) ? rowRemarksEl.value : sharedRemarks;
@@ -2862,14 +2898,25 @@ async function saveWorkingEntries(mode) {
     toast(T('enterCountAbove0') + ' ' + zeroCountWfs.join(', '));
     return;
   }
-  try {
-    const r = await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines });
-    if (mode === 'Submitted') {
-      await callApi('submitEntryGroup', { staffId: SESSION.staffId, groupId: r.groupId });
-      toast(T('submittedForApproval'));
-    } else {
-      toast(T('savedAsDraft'));
+  // MANDATORY REMARKS: on Submit, every ticked workflow must have Remarks
+  // (its own, or the shared one at the bottom). Draft saving stays free.
+  // Checked BEFORE addWorkingEntries so a failed check never leaves a
+  // half-created Draft behind. The server re-checks in submitEntryGroup().
+  if (mode === 'Submitted') {
+    const noRemarksWfs = lines.filter(l => !String(l.remarks || '').trim()).map(l => {
+      const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId);
+      return wf ? wf['Workflow Name'] : l.workflowId;
+    });
+    if (noRemarksWfs.length) {
+      toast(T('remarksRequiredFor') + ' ' + noRemarksWfs.join(', '));
+      return;
     }
+  }
+  try {
+    // SPEED (Sep 2026): Submit is now ONE server call (rows are saved directly as
+    // Submitted) instead of addWorkingEntries + submitEntryGroup.
+    await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines, submit: mode === 'Submitted' });
+    toast(mode === 'Submitted' ? T('submittedForApproval') : T('savedAsDraft'));
     document.getElementById('regActivity').value = '';
     document.getElementById('regRemarks').value = '';
     document.getElementById('wfChecklistWrap').style.display = 'none';
@@ -3005,7 +3052,7 @@ async function openEditDraft(groupId) {
         <div style="font-size:12px;color:var(--coffee-500);margin-bottom:6px;">Staff: <strong>${escapeHtml(wg.staffName)}</strong> &middot; Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
         <div class="form-row">
           <div><label for="edActual_${escapeHtml(wg.workflowId)}">Actual</label><input type="number" id="edActual_${escapeHtml(wg.workflowId)}" min="0" class="edit-draft-actual" data-wfid="${escapeHtml(wg.workflowId)}" value="${wg.actual}"></div>
-          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
+          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks *</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
         </div>
       </div>
     `).join('')}
