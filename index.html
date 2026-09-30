@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" id="htmlRoot">
 <head>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stores KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
@@ -1837,7 +1838,7 @@ function hasTeamWorkflows(activityId) {
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
 const _apiCache = new Map();
-const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getTargetDashboard','getDisciplinaryActions','getMasters']);
+const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getMonthlyWorkflowBalances','getTargetDashboard','getDisciplinaryActions','getMasters','getAppraisal','getRecognitions','getManualScores','getTrainingRecords','getHRManagementSummary','getHRDashboard','getHRLiveDashboard','getPendingAttendanceVerification']);
 async function callApi(action, params, _retried, _transportRetry) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
@@ -2044,6 +2045,7 @@ function logout() {
   _apiCache.clear();
   hrInited = false;
   sessionStorage.removeItem('kpi_session');
+  sessionStorage.removeItem('kpi_masters');
   // Best-effort - invalidate the token server-side too, so it can't still be
   // replayed after the user has logged out. Fire-and-forget: logout must
   // still work locally even if this call fails (e.g. offline).
@@ -2144,6 +2146,17 @@ function showView(id) {
 // Returns true only once MASTERS looks complete; false if every attempt
 // failed, so the caller can stop instead of silently building the app on
 // top of empty master data.
+function _applyMasters(m) {
+  MASTERS = m;
+  // Backend (HR_POLICY in code.gs) is the single source of truth for
+  // these lists (audit item 18) - overwrite the hardcoded fallbacks
+  // declared above as soon as the real data arrives.
+  if (MASTERS.recognitionTypes) RECOGNITION_TYPES = MASTERS.recognitionTypes;
+  if (MASTERS.memoTypes) MEMO_TYPES = MASTERS.memoTypes;
+  if (MASTERS.memoCategories) MEMO_CATEGORIES = MASTERS.memoCategories;
+  if (MASTERS.memoDecisionOptions) MEMO_DECISIONS = MASTERS.memoDecisionOptions;
+  if (MASTERS.teamWorkflowIds) TEAM_WORKFLOW_IDS = MASTERS.teamWorkflowIds;
+}
 async function loadMastersData(maxAttempts) {
   maxAttempts = maxAttempts || 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -2152,15 +2165,10 @@ async function loadMastersData(maxAttempts) {
       const complete = m && (m.staff && m.staff.length) &&
         (m.activities && m.activities.length) && (m.workflows && m.workflows.length);
       if (complete) {
-        MASTERS = m;
-        // Backend (HR_POLICY in code.gs) is the single source of truth for
-        // these lists (audit item 18) - overwrite the hardcoded fallbacks
-        // declared above as soon as the real data arrives.
-        if (MASTERS.recognitionTypes) RECOGNITION_TYPES = MASTERS.recognitionTypes;
-        if (MASTERS.memoTypes) MEMO_TYPES = MASTERS.memoTypes;
-        if (MASTERS.memoCategories) MEMO_CATEGORIES = MASTERS.memoCategories;
-        if (MASTERS.memoDecisionOptions) MEMO_DECISIONS = MASTERS.memoDecisionOptions;
-        if (MASTERS.teamWorkflowIds) TEAM_WORKFLOW_IDS = MASTERS.teamWorkflowIds;
+        _applyMasters(m);
+        // SPEED (Sep 2026): remember Masters for this tab so a browser refresh (F5)
+        // can open the app instantly and refresh Masters in the background.
+        try { sessionStorage.setItem('kpi_masters', JSON.stringify({ t: Date.now(), u: SESSION && SESSION.staffId, m })); } catch (e) {}
         return true;
       }
       // Came back ok but incomplete (e.g. empty Staff/Activity/Workflow) -
@@ -2215,7 +2223,22 @@ async function enterApp() {
   // get a complete Masters set, we stop here and show a blocking retry
   // screen instead of quietly continuing with a half-built app.
   ensureChartJs().catch(() => {}); // warm Chart.js in parallel with getMasters(); dashboard charts need it right after
-  const ok = await loadMastersData();
+  let ok = false;
+  try {
+    // SPEED (Sep 2026): browser refresh (F5) - use the Masters remembered for this
+    // tab (max 30 min old, same user, verified complete) so the app opens at once,
+    // then refresh them from the server in the background.
+    const raw = sessionStorage.getItem('kpi_masters');
+    const c = raw ? JSON.parse(raw) : null;
+    if (c && c.u === SESSION.staffId && Date.now() - c.t < 30 * 60 * 1000 && c.m &&
+        c.m.staff && c.m.staff.length && c.m.activities && c.m.activities.length &&
+        c.m.workflows && c.m.workflows.length) {
+      _applyMasters(c.m);
+      ok = true;
+      loadMastersData().catch(() => {});
+    }
+  } catch (e) { ok = false; }
+  if (!ok) ok = await loadMastersData();
   if (!ok) {
     showMastersLoadError();
     return;
@@ -4416,6 +4439,11 @@ async function submitManualScoreEntry() {
 async function loadManualScoresTable() {
   const p = hrPeriodParams();
   if (!p.periodLabel) return;
+  // SPEED (Sep 2026): fetch the manual scores and the automatic Training scores
+  // TOGETHER (was one after the other = two waits in a row).
+  const _fullP = (p.from && p.to)
+    ? callApi('getFullAppraisal', p).catch(() => null)
+    : Promise.resolve(null);
   let rows = [];
   try { rows = await callApi('getManualScores', { periodLabel: p.periodLabel }); } catch (e) { toast(e.message); return; }
   // AUTOMATIC TRAINING (Aug 2026): 'Training Rating' is no longer written by
@@ -4424,12 +4452,10 @@ async function loadManualScoresTable() {
   // score (criteria.training) for the whole period in one call - fetch it
   // once here and key it by Staff ID for display.
   let trainingByStaff = {};
-  if (p.from && p.to) {
-    try {
-      const full = await callApi('getFullAppraisal', p);
-      full.forEach(a => trainingByStaff[a.staffId] = a.criteria.training);
-    } catch (e) { /* non-fatal - falls back to '—' below */ }
-  }
+  try {
+    const full = await _fullP;
+    if (full) full.forEach(a => trainingByStaff[a.staffId] = a.criteria.training);
+  } catch (e) { /* non-fatal - falls back to '—' below */ }
   document.querySelector('#manualScoresTable tbody').innerHTML = rows.map(r => `
     <tr><td>${escapeHtml(r['Staff Name'])}</td><td>${escapeHtml(r['Present Days'])}</td><td>${escapeHtml(r['Leave Days'])}</td>
     <td>${escapeHtml(r['Late Entries'])}</td><td>${escapeHtml(r['Early Leaving Count'])}</td><td>${escapeHtml(r['Shift Compliance %'])}</td>
