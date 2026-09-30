@@ -1839,6 +1839,20 @@ function hasTeamWorkflows(activityId) {
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
 const _apiCache = new Map();
 const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getMonthlyWorkflowBalances','getTargetDashboard','getDisciplinaryActions','getMasters','getAppraisal','getRecognitions','getManualScores','getTrainingRecords','getHRManagementSummary','getHRDashboard','getHRLiveDashboard','getPendingAttendanceVerification']);
+// REQUEST QUEUE (Sep 2026): Apps Script's echo URL intermittently 404s when many
+// calls are in flight together (e.g. page load). Limit concurrent API calls so
+// the rest wait their turn. login/runBackupNow bypass the queue.
+const _API_MAX_CONCURRENT = 2;
+let _apiActive = 0;
+const _apiWaiters = [];
+function _apiAcquire() {
+  if (_apiActive < _API_MAX_CONCURRENT) { _apiActive++; return Promise.resolve(); }
+  return new Promise(resolve => _apiWaiters.push(resolve));
+}
+function _apiRelease() {
+  const next = _apiWaiters.shift();
+  if (next) next(); else _apiActive--;
+}
 async function callApi(action, params, _retried, _transportRetry) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
@@ -1887,6 +1901,9 @@ async function callApi(action, params, _retried, _transportRetry) {
   // Reads: 8s (+6s per retry). Writes: 30s (safe - the server de-duplicates by reqId).
   // login and backup are never cancelled.
   const _noAbort = (action === 'login' || action === 'runBackupNow');
+  let _slotHeld = !_noAbort;
+  const _releaseSlot = () => { if (_slotHeld) { _slotHeld = false; _apiRelease(); } };
+  if (_slotHeld) await _apiAcquire();
   const _ctrl = new AbortController();
   const _abortTimer = _noAbort ? null :
     setTimeout(() => _ctrl.abort(), (_isRead ? 8000 : 30000) + transportAttempt * 6000);
@@ -1899,8 +1916,10 @@ async function callApi(action, params, _retried, _transportRetry) {
     });
     rawText = await res.text();
     if (_abortTimer) clearTimeout(_abortTimer);
+    _releaseSlot();
   } catch (netErr) {
     if (_abortTimer) clearTimeout(_abortTimer);
+    _releaseSlot();
     if (transportAttempt < 2) {
       await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
       return callApi(action, params, _retried, transportAttempt + 1);
