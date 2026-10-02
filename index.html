@@ -405,6 +405,27 @@ main.content{
        contract: updateTrainingRecord() does not accept them; a genuine
        date/training/staff correction is delete+re-add). Opened via the new
        Edit button on each Training Register row. -->
+  <!-- CORRECT APPROVED QTY (Manager only): corrects ONE approved Working Register
+       line (the row whose button was clicked). Other lines - including
+       co-staff lines of the same team entry - are never touched. -->
+  <div id="correctQtyModal" class="modal-overlay" style="display:none">
+    <div class="modal-box" style="max-width:480px">
+      <h3 data-i18n="correctQtyTitle">Correct Approved Qty</h3>
+      <p id="cqSubtitle" style="font-size:13px;color:var(--coffee-700);margin-bottom:10px"></p>
+      <input type="hidden" id="cqLineId">
+      <div class="form-row">
+        <div><label for="cqOld" data-i18n="cqOldQty">Current Approved Qty</label><input type="text" id="cqOld" disabled></div>
+        <div><label for="cqNew" data-i18n="cqNewQty">Correct Qty</label><input type="number" id="cqNew" min="0" step="any"></div>
+        <div style="grid-column:1/-1"><label for="cqReason" data-i18n="reason">Reason</label><input type="text" id="cqReason" maxlength="200"></div>
+      </div>
+      <p style="font-size:12px;color:var(--coffee-500);margin-top:6px" data-i18n="cqNote">Only this one entry line is corrected. KPI Score is recalculated and the change is recorded in Remarks and Audit Log.</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button class="btn btn-outline" onclick="document.getElementById('correctQtyModal').style.display='none'" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-brown" onclick="saveCorrectQty()" data-i18n="saveChanges">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <div id="editTrainingRecordModal" class="modal-overlay" style="display:none">
     <div class="modal-box" style="max-width:520px">
       <h3 data-i18n="editTrainingRecord">Edit Training Record</h3>
@@ -494,7 +515,11 @@ main.content{
             <select id="dashRangeSelect" onchange="onDashboardRangeChange()">
               <option value="thisMonth" data-i18n="dashRangeThisMonth">This Month</option>
               <option value="last60" data-i18n="dashRangeLast60">Last 60 Days</option>
+              <option value="month" data-i18n="dashRangeSelectMonth">Select Month</option>
             </select>
+          </div>
+          <div id="dashMonthWrap" style="display:none"><label for="dashMonth" data-i18n="month">Month</label>
+            <input type="month" id="dashMonth" onchange="onDashboardRangeChange()">
           </div>
         </div>
 
@@ -524,6 +549,18 @@ main.content{
       <section class="view" id="view-register">
         <h2 class="view-title" data-i18n="regTitle">Working Register</h2>
         <p class="view-sub" data-i18n="regSub">Pick the Date and Activity, then tick the workflows you performed. Team workflows can be entered multiple times on the same date for separate jobs.</p>
+        <div class="card" id="cqCard" style="display:none">
+          <div style="font-weight:700;margin-bottom:8px" data-i18n="correctQtyTitle">Correct Approved Qty</div>
+          <div class="form-row">
+            <div><label for="cqStaff" data-i18n="staff">Staff</label><select id="cqStaff"></select></div>
+            <div><label for="cqWorkflow" data-i18n="workflow">Workflow</label><select id="cqWorkflow"></select></div>
+            <div><label for="cqMonth" data-i18n="date">Date</label><input type="date" id="cqMonth"></div>
+            <div style="align-self:end"><button class="btn btn-brown" onclick="loadCorrectQtyLines()" data-i18n="cqShow">Show Approved Lines</button></div>
+          </div>
+          <div class="table-wrap" style="margin-top:10px"><table id="cqTable"><thead><tr>
+            <th data-i18n="date">Date</th><th data-i18n="cqOldQty">Current Approved Qty</th><th>Team</th><th></th>
+          </tr></thead><tbody><tr><td colspan="4" class="empty" data-i18n="cqPick">Select Staff, Workflow and Date.</td></tr></tbody></table></div>
+        </div>
         <div class="card">
           <div style="font-size:12.5px;color:var(--coffee-600);margin-bottom:10px;" id="regLoggedByLine"></div>
           <div class="form-row">
@@ -1189,7 +1226,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxJOi5m10nofsPmdl2yodxIrxpGgDiyQufySfuTNVDVORExeT5n-wW9l5-4xfuZHfi1/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyqtdKYYlaqD1L7gn2tYPqZ23WdOVrkDEIk9q-01sxgLKqK7AxY5AZOsi2jtpyzWJAa/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1400,6 +1437,17 @@ const I18N = {
   saveManualScores: { en: "Save Manual Scores", ta: "கைமுறை மதிப்பெண்களைச் சேமி" },
   changePassword: { en: "Change Password", ta: "கடவுச்சொல்லை மாற்று" },
   cancel: { en: "Cancel", ta: "ரத்துசெய்" },
+  correctQtyBtn: { en: "Correct Qty", ta: "அளவு திருத்து" },
+  correctQtyTitle: { en: "Correct Approved Qty", ta: "அங்கீகரிக்கப்பட்ட அளவை திருத்து" },
+  cqOldQty: { en: "Current Approved Qty", ta: "தற்போதைய அளவு" },
+  cqNewQty: { en: "Correct Qty", ta: "சரியான அளவு" },
+  cqNote: { en: "Only this one entry line is corrected. KPI Score is recalculated and the change is recorded in Remarks and Audit Log.", ta: "இந்த ஒரு வரி மட்டுமே திருத்தப்படும். KPI மதிப்பெண் மீண்டும் கணக்கிடப்படும்; மாற்றம் Remarks மற்றும் Audit Log-இல் பதிவாகும்." },
+  cqNeedQty: { en: "Enter a valid Qty (0 or more).", ta: "சரியான அளவை (0 அல்லது அதற்கு மேல்) உள்ளிடவும்." },
+  cqNeedReason: { en: "Reason is required.", ta: "காரணம் அவசியம்." },
+  cqShow: { en: "Show Approved Lines", ta: "அங்கீகரிக்கப்பட்ட வரிகளைக் காட்டு" },
+  cqPick: { en: "Select Staff, Workflow and Date.", ta: "Staff, Workflow, Date தேர்ந்தெடுக்கவும்." },
+  cqNone: { en: "No approved lines found.", ta: "அங்கீகரிக்கப்பட்ட வரிகள் இல்லை." },
+  cqDone: { en: "Qty corrected", ta: "அளவு திருத்தப்பட்டது" },
   mustChangePasswordNote: { en: "For security, please set a new password before continuing.", ta: "பாதுகாப்பிற்காக, தொடர்வதற்கு முன் புதிய கடவுச்சொல்லை அமைக்கவும்." },
   currentPassword: { en: "Current Password", ta: "தற்போதைய கடவுச்சொல்" },
   newPassword: { en: "New Password (min 8 characters, letters + numbers)", ta: "புதிய கடவுச்சொல் (குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் சேர்த்து)" },
@@ -1589,6 +1637,11 @@ const I18N = {
   repKpiWorkflowPerf: { en: "🎯 KPI / Workflow Performance", ta: "🎯 KPI / பணிப்பாய்வு செயல்திறன்" },
   repSectionPerf: { en: "🏢 Section Performance", ta: "🏢 பிரிவு செயல்திறன்" },
   repDateRangePerf: { en: "📅 Date Range Performance", ta: "📅 தேதி வரம்பு செயல்திறன்" },
+  repStaffContribution: { en: "Staff Contribution vs Target", ta: "Staff பங்களிப்பு vs Target" },
+  colStaffQty: { en: "Staff Qty", ta: "Staff அளவு" },
+  colPctOfTarget: { en: "% of Monthly Target", ta: "Monthly Target-ல் %" },
+  colShareOfWorkflow: { en: "Share of Workflow %", ta: "Workflow-ல் பங்கு %" },
+  colWorkflowActual: { en: "Workflow Total Actual", ta: "Workflow மொத்த Actual" },
   repMonthlyTargetAch: { en: "📆 Monthly Target & Achievement", ta: "📆 மாதாந்திர இலக்கு & சாதனை" },
   repStaffAppraisal: { en: "⭐ Staff Appraisal", ta: "⭐ பணியாளர் மதிப்பீடு" },
   repApprovalRegister: { en: "✅ Approval / Working Register", ta: "✅ ஒப்புதல் / பணி பதிவேடு" },
@@ -1708,6 +1761,7 @@ const I18N = {
   viewMyTrend: { en: "📈 My HR Appraisal Trend", ta: "📈 எனது HR மதிப்பீட்டு போக்கு" },
   dashDateRangeLabel: { en: "Date Range", ta: "தேதி வரம்பு" },
   dashRangeThisMonth: { en: "This Month", ta: "இந்த மாதம்" },
+  dashRangeSelectMonth: { en: "Select Month", ta: "மாதம் தேர்வு" },
   dashRangeLast60: { en: "Last 60 Days", ta: "கடந்த 60 நாட்கள்" },
   approvedEntriesRange: { en: "Approved Entries", ta: "அங்கீகரிக்கப்பட்ட பதிவுகள்" },
   totalKpiPctRange: { en: "Total KPI %", ta: "மொத்த KPI %" },
@@ -1894,6 +1948,7 @@ async function callApi(action, params, _retried, _transportRetry) {
   // below. transportAttempt counts ONLY these transport-level retries (fetch
   // network errors + non-JSON/404 responses) and is separate from the
   // existing sessionExpired attempt counter (_retried) further down.
+  const _reqStart = Date.now(); // PWD-CHANGE FIX: compare with _lastPwChangeTs below
   const transportAttempt = _transportRetry || 0;
   let res, rawText;
   // TIMEOUT (Sep 2026): an Apps Script call that hits the echo-404 can hang ~15s
@@ -1971,6 +2026,12 @@ async function callApi(action, params, _retried, _transportRetry) {
     // if this tab's SESSION/UI state hasn't caught up yet (e.g. flag set by
     // an admin mid-session, or a stale tab). Re-open the same forced modal
     // the login flow already uses, instead of just showing a raw error.
+    if (out.mustChangePassword && _reqStart < _lastPwChangeTs) {
+      // PWD-CHANGE FIX: this request left BEFORE the password was changed, so the
+      // server's 'must change' answer is outdated - re-send it instead of
+      // re-opening the change-password popup.
+      return callApi(action, params, _retried, _transportRetry);
+    }
     if (out.mustChangePassword) {
       if (SESSION) { SESSION.mustChangePassword = true; sessionStorage.setItem('kpi_session', JSON.stringify(SESSION)); }
       openChangePasswordModal(true);
@@ -2007,11 +2068,10 @@ async function doLogin() {
     const data = await callApi('login', { userId, password });
     SESSION = data;
     sessionStorage.setItem('kpi_session', JSON.stringify(data));
-    enterApp();
+    enterApp(); // opens the forced-change popup itself when needed
     // FORCED PASSWORD CHANGE (audit item 31) - shown on top of the app right
     // after entering; Cancel is hidden so a starter/reset account can't be
     // used further until the password is actually changed.
-    if (data.mustChangePassword) openChangePasswordModal(true);
   } catch (e) {
     err.textContent = e.message;
   } finally {
@@ -2019,7 +2079,12 @@ async function doLogin() {
   }
 }
 
+let _pendingEnter = false;
 function openChangePasswordModal(forced) {
+  // TYPING FIX: if the forced popup is already open, do NOT reset it - background
+  // calls used to re-open it every second or two and wipe the letters being typed.
+  const _m = document.getElementById('changePasswordModal');
+  if (forced && _m.style.display === 'flex' && _m.dataset.forced === '1') return;
   document.getElementById('cpOldPassword').value = '';
   document.getElementById('cpNewPassword').value = '';
   document.getElementById('cpConfirmPassword').value = '';
@@ -2035,6 +2100,7 @@ function closeChangePasswordModal() {
   document.getElementById('changePasswordModal').style.display = 'none';
 }
 
+let _lastPwChangeTs = 0;
 async function submitChangePassword() {
   const oldPassword = document.getElementById('cpOldPassword').value;
   const newPassword = document.getElementById('cpNewPassword').value;
@@ -2046,11 +2112,14 @@ async function submitChangePassword() {
   if (newPassword !== confirmPassword) { errEl.textContent = T('passwordsDontMatch'); return; }
   try {
     await callApi('changePassword', { oldPassword, newPassword });
+    _lastPwChangeTs = Date.now();
+    _apiCache.clear();
     SESSION.mustChangePassword = false;
     sessionStorage.setItem('kpi_session', JSON.stringify(SESSION));
     document.getElementById('changePasswordModal').dataset.forced = '';
     document.getElementById('changePasswordModal').style.display = 'none';
     toast(T('passwordChanged'));
+    if (_pendingEnter) { _pendingEnter = false; enterApp(); }
   } catch (e) { errEl.textContent = e.message; }
 }
 
@@ -2224,6 +2293,9 @@ async function enterApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role;
+  // TYPING FIX: while a password change is compulsory, don't call the server for
+  // Masters (it is blocked anyway and kept re-opening the popup). Load the app after the change.
+  if (SESSION.mustChangePassword) { _pendingEnter = true; openChangePasswordModal(true); return; }
 
   // BUGFIX (Aug 2026): getMasters() failures used to be handled with a
   // single attempt + a catch block that only bailed out if SESSION had
@@ -2516,7 +2588,6 @@ window.addEventListener('DOMContentLoaded', () => {
   if (saved) {
     SESSION = JSON.parse(saved);
     enterApp();
-    if (SESSION.mustChangePassword) openChangePasswordModal(true);
   }
 });
 
@@ -2536,17 +2607,30 @@ let DASHBOARD_RANGE_MODE = 'thisMonth';
 
 function onDashboardRangeChange() {
   DASHBOARD_RANGE_MODE = document.getElementById('dashRangeSelect').value;
+  const mi = document.getElementById('dashMonth');
+  if (DASHBOARD_RANGE_MODE === 'month' && mi && !mi.value) mi.value = currentMonthInputValue();
   loadDashboard();
 }
 
 async function loadDashboard() {
   const sel = document.getElementById('dashRangeSelect');
   if (sel) sel.value = DASHBOARD_RANGE_MODE; // keep the dropdown in sync if Dashboard was re-entered via nav
+  const monthWrap = document.getElementById('dashMonthWrap');
+  if (monthWrap) monthWrap.style.display = DASHBOARD_RANGE_MODE === 'month' ? '' : 'none';
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // local calendar day, no time component
-  let fromDate;
-  if (DASHBOARD_RANGE_MODE === 'last60') {
+  let fromDate, toDateOverride = null;
+  if (DASHBOARD_RANGE_MODE === 'month') {
+    // Whole selected calendar month (1st -> last day). The current month is
+    // capped at today so it matches "This Month". Whole months keep the
+    // Monthly Target maths exact (no part-month Target distortion).
+    const mv = (document.getElementById('dashMonth') || {}).value || currentMonthInputValue();
+    const my = Number(mv.slice(0, 4)), mm = Number(mv.slice(5, 7));
+    fromDate = new Date(my, mm - 1, 1);
+    const lastDay = new Date(my, mm, 0);
+    toDateOverride = lastDay > today ? today : lastDay;
+  } else if (DASHBOARD_RANGE_MODE === 'last60') {
     // Rolling 60 calendar days INCLUSIVE of today: today - 59 days gives
     // exactly 60 days in the [from, to] range (e.g. to=15-Sep -> from=17-Jul).
     fromDate = new Date(today);
@@ -2555,7 +2639,7 @@ async function loadDashboard() {
     fromDate = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of current month
   }
   const from = localDateStr(fromDate);
-  const to = localDateStr(today);
+  const to = localDateStr(toDateOverride || today);
   const p = { from, to };
   if (SESSION.role === 'Staff') p.staffId = SESSION.staffId;
   let d;
@@ -2583,8 +2667,8 @@ async function loadDashboard() {
   // Card labels say "(MTD)" only in "This Month" mode - showing that
   // wording while actually displaying a 60-day window would be
   // misleading, so swap to the generic (no-suffix) label in that mode.
-  const entriesLabel = DASHBOARD_RANGE_MODE === 'last60' ? T('approvedEntriesRange') : T('approvedEntriesMtd');
-  const kpiPctLabel = DASHBOARD_RANGE_MODE === 'last60' ? T('totalKpiPctRange') : T('totalKpiPctMtd');
+  const entriesLabel = DASHBOARD_RANGE_MODE !== 'thisMonth' ? T('approvedEntriesRange') : T('approvedEntriesMtd');
+  const kpiPctLabel = DASHBOARD_RANGE_MODE !== 'thisMonth' ? T('totalKpiPctRange') : T('totalKpiPctMtd');
 
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card"><div class="label">${entriesLabel}</div><div class="value">${d.totalEntries}</div></div>
@@ -3126,6 +3210,23 @@ async function saveEditDraft() {
 }
 
 const REGISTER_VISIBLE_DAYS = 90;
+// Working Register display window (hours). Approved lines stay visible for
+// 12 h after approval, Rejected lines for 36 h after rejection. Draft /
+// Submitted lines stay visible until approved/rejected; Draft lines are not
+// shown here ("My Drafts" card). Display only - data, reports and the
+// Correct Approved Qty card are unaffected.
+const REGISTER_APPROVED_HOURS = 12;
+const REGISTER_REJECTED_HOURS = 36;
+function registerLineVisible(r) {
+  const st = r['Approval Status'];
+  if (st === 'Draft') return false;   // Drafts live in the "My Drafts" card
+  if (st === 'Submitted') return true; // pending approval: visible to Staff and Manager until decided
+  const hrs = st === 'Approved' ? REGISTER_APPROVED_HOURS : st === 'Rejected' ? REGISTER_REJECTED_HOURS : null;
+  if (hrs === null) return true;
+  const ts = new Date(st === 'Approved' ? r['Approved On'] : r['Rejected On']).getTime();
+  if (!isFinite(ts)) return false;
+  return (Date.now() - ts) <= hrs * 3600 * 1000;
+}
 async function loadRegister() {
   // BUGFIX (Sep 2026): "Cannot read properties of null (reading 'role')".
   // If the session expires (callApi() -> logout() sets SESSION = null) while
@@ -3133,6 +3234,7 @@ async function loadRegister() {
   // SESSION.role. Bail out quietly whenever there is no session.
   if (!SESSION) return;
   populateRegActivitySelect();
+  initCorrectQtyCard();
   loadMyDrafts();
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
   // PERF (Sep 2026, item 3): only fetch the last REGISTER_VISIBLE_DAYS days.
@@ -3173,7 +3275,7 @@ async function loadRegister() {
     const mates = rows.filter(r => r['Team Ref No'] === row['Team Ref No'] && r['Staff ID'] !== row['Staff ID']);
     return mates.length ? escapeHtml(mates.map(m => m['Staff Name']).join(', ')) : '—';
   };
-  tbody.innerHTML = rows.slice(0, 50).map(r => {
+  tbody.innerHTML = rows.filter(registerLineVisible).map(r => {
     const split = Number(r['Team Split Size']) > 1;
     // Rejected (or any non-Approved) rows never earn KPI credit - always show
     // 0 regardless of what the raw KPI Score / team split math would give.
@@ -3443,7 +3545,7 @@ async function loadAttendance() {
   rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
   ATTENDANCE_ROWS_BY_KEY = {};
   const canEdit = SESSION.role === 'Manager' || SESSION.role === 'HR';
-  document.querySelector('#attendanceTable tbody').innerHTML = rows.slice(0, 50).map(r => {
+  document.querySelector('#attendanceTable tbody').innerHTML = rows.map(r => {
     const vs = verifyStatusDisplay(r['Verify Status']);
     const key = r['Staff ID'] + '|' + localDateStr(new Date(r['Date']));
     ATTENDANCE_ROWS_BY_KEY[key] = r;
@@ -4534,6 +4636,71 @@ async function loadTrainingRegisterTable() {
   `).join('') || `<tr><td colspan="10" class="empty">${T('noTrainingRecordsYet')}</td></tr>`;
 }
 
+let CORRECT_QTY_ROWS = {};
+function initCorrectQtyCard() {
+  const card = document.getElementById('cqCard');
+  if (!card) return;
+  if (!SESSION || SESSION.role !== 'Manager') { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const sSel = document.getElementById('cqStaff'), wSel = document.getElementById('cqWorkflow');
+  if (!sSel.options.length) {
+    sSel.innerHTML = MASTERS.staff.filter(x => x['Status'] !== 'Inactive')
+      .map(x => `<option value="${escapeHtml(x['Staff ID'])}">${escapeHtml(x['Staff Name'])}</option>`).join('');
+    wSel.innerHTML = MASTERS.workflows.filter(w => w['Status'] !== 'Inactive')
+      .map(w => `<option value="${escapeHtml(w['Workflow ID'])}">${escapeHtml(w['Workflow ID'] + ' - ' + w['Workflow Name'])}</option>`).join('');
+    document.getElementById('cqMonth').value = localDateStr(new Date());
+  }
+}
+
+async function loadCorrectQtyLines() {
+  const staffId = document.getElementById('cqStaff').value;
+  const wfId = document.getElementById('cqWorkflow').value;
+  const month = document.getElementById('cqMonth').value; // YYYY-MM-DD (selected date)
+  const tbody = document.querySelector('#cqTable tbody');
+  if (!staffId || !wfId || !month) { toast(T('cqPick')); return; }
+  const from = month, to = month;
+  let rows;
+  try { rows = await callApi('getWorkingRegister', { staffId: staffId, from: from, to: to }); }
+  catch (e) { toast(e.message); return; }
+  rows = rows.filter(r => r['Workflow ID'] === wfId && r['Approval Status'] === 'Approved')
+             .sort((a, b) => new Date(a['Date']) - new Date(b['Date']));
+  CORRECT_QTY_ROWS = {};
+  tbody.innerHTML = rows.map(r => {
+    CORRECT_QTY_ROWS[r['Line ID']] = r;
+    return `<tr><td>${fmtDate(r['Date'])}</td><td>${escapeHtml(String(r['Actual']))}</td>
+      <td>${Number(r['Team Split Size']) > 1 ? escapeHtml(String(r['Team Ref No'] || 'Team')) : '—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openCorrectQty('${escapeHtml(r['Line ID'])}')">✏️ ${T('correctQtyBtn')}</button></td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="empty">${T('cqNone')}</td></tr>`;
+}
+function openCorrectQty(lineId) {
+  const r = CORRECT_QTY_ROWS[lineId];
+  if (!r) { toast(T('recordNotFound')); return; }
+  document.getElementById('cqLineId').value = lineId;
+  document.getElementById('cqSubtitle').textContent = r['Staff Name'] + ' — ' + r['Workflow Name'] + ' (' + fmtDate(r['Date']) + ')';
+  document.getElementById('cqOld').value = r['Actual'];
+  document.getElementById('cqNew').value = '';
+  document.getElementById('cqReason').value = '';
+  document.getElementById('correctQtyModal').style.display = 'flex';
+}
+
+async function saveCorrectQty() {
+  const lineId = document.getElementById('cqLineId').value;
+  const newActual = document.getElementById('cqNew').value;
+  const reason = document.getElementById('cqReason').value.trim();
+  if (newActual === '' || !isFinite(Number(newActual)) || Number(newActual) < 0) { toast(T('cqNeedQty')); return; }
+  if (!reason) { toast(T('cqNeedReason')); return; }
+  try {
+    await callApi('correctApprovedQty', {
+      actorRole: SESSION.role, actorUserId: SESSION.userId,
+      lineIds: [lineId], newActual: Number(newActual), reason: reason
+    });
+    document.getElementById('correctQtyModal').style.display = 'none';
+    toast(T('cqDone'));
+    loadCorrectQtyLines();
+    loadRegister();
+  } catch (e) { toast(e.message); }
+}
+
 function openEditTrainingRecord(recordId) {
   const r = TRAINING_REGISTER_ROWS[recordId];
   if (!r) { toast(T('recordNotFound')); return; }
@@ -4924,6 +5091,24 @@ const REPORT_DEFS = {
       { key: 'status', labelKey: 'status' }
     ], totals: ['monthlyTarget', 'approvedActual', 'balance', 'kpiScore']
   },
+  // STAFF CONTRIBUTION vs MONTHLY TARGET (Manager only, frontend-only, Oct 2026):
+  // one row per Month x Workflow x Staff. Workflow Monthly Target / Approved
+  // total come from getMonthlyTargetAchievementReport (the same figures as the
+  // Monthly Target & Achievement report); each Staff's quantity comes from the
+  // Approved Working Register lines. A Team job (same Team Ref No) is split
+  // equally between the staff whose Approved lines carry that Team Ref, so the
+  // staff quantities add up to the workflow's Approved Actual.
+  staffContribution: {
+    action: 'getMonthlyTargetAchievementReport', labelKey: 'repStaffContribution', managerOnly: true,
+    filters: ['date', 'section', 'staff', 'activity', 'workflow'],
+    customFetch: fetchStaffContribution,
+    columns: [
+      { key: 'month', labelKey: 'colMonth' }, { key: 'activityName', labelKey: 'activity' }, { key: 'workflowName', labelKey: 'workflow' },
+      { key: 'monthlyTarget', labelKey: 'colMonthlyTarget', fmt: 'num' }, { key: 'staffName', labelKey: 'staff' },
+      { key: 'staffQty', labelKey: 'colStaffQty', fmt: 'num' }, { key: 'pctOfTarget', labelKey: 'colPctOfTarget', fmt: 'pct' },
+      { key: 'shareOfWorkflow', labelKey: 'colShareOfWorkflow', fmt: 'pct' }, { key: 'workflowActual', labelKey: 'colWorkflowActual', fmt: 'num' }
+    ]
+  },
   staffAppraisal: {
     action: 'getStaffAppraisalReport', labelKey: 'repStaffAppraisal', filters: ['date', 'section', 'staff'],
     columns: [
@@ -5019,7 +5204,7 @@ function repFmt(val, fmt) {
 }
 
 function buildReportTypeButtons() {
-  document.getElementById('repTypeButtons').innerHTML = Object.keys(REPORT_DEFS).map(id =>
+  document.getElementById('repTypeButtons').innerHTML = Object.keys(REPORT_DEFS).filter(id => !REPORT_DEFS[id].managerOnly || (SESSION && SESSION.role === 'Manager')).map(id =>
     `<button class="btn ${id === currentReportId ? 'btn-brown' : 'btn-outline'} btn-sm" onclick="selectReportType('${id}')">${T(REPORT_DEFS[id].labelKey)}</button>`
   ).join('');
 }
@@ -5064,6 +5249,62 @@ function loadReportsView() {
   applyReportFilterVisibility();
 }
 
+async function fetchStaffContribution(params) {
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthOf = v => {
+    const m = /^(\d{4})-(\d{2})-\d{2}/.exec(String(v));
+    if (m) return MON[Number(m[2]) - 1] + '-' + m[1];
+    const d = new Date(v); return isNaN(d) ? '' : MON[d.getMonth()] + '-' + d.getFullYear();
+  };
+  const [wfRows, regRows] = await Promise.all([
+    callApi('getMonthlyTargetAchievementReport', { from: params.from, to: params.to, section: params.section, activityId: params.activityId, workflowId: params.workflowId }),
+    callApi('getWorkingRegister', { from: params.from, to: params.to })
+  ]);
+  const wfInfo = {};
+  (wfRows || []).forEach(w => { wfInfo[w.month + '|' + w.activityName + '|' + w.workflowName] = w; });
+  const sectionOf = {};
+  MASTERS.staff.forEach(x => { sectionOf[x['Staff ID']] = x['Section']; });
+  const approved = (regRows || []).filter(r => r['Approval Status'] === 'Approved');
+  // team group sizes use ALL approved lines (before any filter) so the split is right
+  const teamSize = {};
+  approved.forEach(r => { if (r['Team Ref No']) { const k = r['Workflow ID'] + '|' + r['Team Ref No']; teamSize[k] = (teamSize[k] || 0) + 1; } });
+  const agg = {};
+  approved.forEach(r => {
+    if (params.workflowId && r['Workflow ID'] !== params.workflowId) return;
+    if (params.activityId && r['Activity ID'] !== params.activityId) return;
+    if (params.section && sectionOf[r['Staff ID']] !== params.section) return;
+    const month = monthOf(r['Date']);
+    const key = month + '|' + r['Activity Name'] + '|' + r['Workflow Name'];
+    const info = wfInfo[key];
+    if (!info) return; // e.g. Attendance - not part of the target report
+    const n = r['Team Ref No'] ? (teamSize[r['Workflow ID'] + '|' + r['Team Ref No']] || 1) : 1;
+    const qty = (Number(r['Actual']) || 0) / n;
+    const a = agg[key] = agg[key] || {};
+    const st = a[r['Staff ID']] = a[r['Staff ID']] || { name: r['Staff Name'], qty: 0 };
+    st.qty += qty;
+  });
+  const out = [];
+  Object.keys(agg).forEach(key => {
+    const info = wfInfo[key];
+    const staffs = Object.keys(agg[key]).map(id => ({ id, ...agg[key][id] }))
+      .filter(x => !params.staffId || x.id === params.staffId)
+      .sort((a, b) => b.qty - a.qty);
+    const tot = Object.keys(agg[key]).reduce((t, id) => t + agg[key][id].qty, 0);
+    staffs.forEach(x => {
+      out.push({
+        month: info.month, activityName: info.activityName, workflowName: info.workflowName,
+        monthlyTarget: info.monthlyTarget, staffName: x.name,
+        staffQty: Math.round(x.qty * 100) / 100,
+        pctOfTarget: info.monthlyTarget > 0 ? Math.round(x.qty / info.monthlyTarget * 10000) / 100 : '',
+        shareOfWorkflow: tot > 0 ? Math.round(x.qty / tot * 10000) / 100 : '',
+        workflowActual: info.approvedActual
+      });
+    });
+  });
+  const mi = m => { const p = m.split('-'); return Number(p[1]) * 12 + MON.indexOf(p[0]); };
+  return out.sort((a, b) => mi(a.month) - mi(b.month) || a.activityName.localeCompare(b.activityName) || a.workflowName.localeCompare(b.workflowName) || b.staffQty - a.staffQty);
+}
+
 async function runReport() {
   const def = REPORT_DEFS[currentReportId];
   const from = document.getElementById('repFrom').value;
@@ -5090,7 +5331,7 @@ async function runReport() {
 
   let data;
   try {
-    data = await callApi(def.action, params);
+    data = def.customFetch ? await def.customFetch(params) : await callApi(def.action, params);
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="${def.columns.length}" class="empty">${escapeHtml(e.message)}</td></tr>`;
     return;
