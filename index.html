@@ -2201,6 +2201,7 @@ function logout() {
   hrInited = false;
   sessionStorage.removeItem('kpi_session');
   sessionStorage.removeItem('kpi_masters');
+  sessionStorage.removeItem('kpi_dash');
   // Best-effort - invalidate the token server-side too, so it can't still be
   // replayed after the user has logged out. Fire-and-forget: logout must
   // still work locally even if this call fails (e.g. offline).
@@ -2709,10 +2710,30 @@ async function loadDashboard() {
   const to = localDateStr(toDateOverride || today);
   const p = { from, to };
   if (SESSION.role === 'Staff') p.staffId = SESSION.staffId;
+  // RELOAD SPEED (Oct 2026): stale-while-revalidate. If this tab already has a
+  // dashboard for the SAME user + date range, show it at once, then replace it
+  // with the fresh server answer. The server stays the source of truth.
+  const dashSeq = ++_dashSeq;
+  const dashKey = (SESSION.staffId || '') + '|' + SESSION.role + '|' + from + '|' + to;
+  let shownCached = false;
+  try {
+    const raw = sessionStorage.getItem('kpi_dash');
+    const c = raw ? JSON.parse(raw) : null;
+    if (c && c.k === dashKey && Date.now() - c.t < 30 * 60 * 1000 && c.d) {
+      renderDashboard(c.d);
+      shownCached = true;
+    }
+  } catch (e) { shownCached = false; }
   let d;
-  try { d = await callApi('getDashboard', p); } catch (e) { toast(e.message); return; }
-  if (!SESSION) return;
+  try { d = await callApi('getDashboard', p); }
+  catch (e) { if (!shownCached) toast(e.message); return; }
+  if (!SESSION || dashSeq !== _dashSeq) return; // logged out, or a newer dashboard request superseded this one
+  try { sessionStorage.setItem('kpi_dash', JSON.stringify({ k: dashKey, t: Date.now(), d: d })); } catch (e) {}
+  renderDashboard(d);
+}
+let _dashSeq = 0;
 
+function renderDashboard(d) {
   // UPTREND arrow (Aug 2026): getDashboard() now returns d.trend (Approved-base
   // comparison vs the immediately preceding period of the same length) - null
   // when there's no prior-period Approved base to compare against. Same
