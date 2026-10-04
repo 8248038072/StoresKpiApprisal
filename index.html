@@ -4112,6 +4112,9 @@ function scoreCardHtml(d) {
       <div class="stat-card"><div class="label">${T('grade')}</div><div class="value">${d.grade}</div></div>
       <div class="stat-card alt"><div class="label">${T('overallPerformance')}</div><div class="value" style="font-size:15px">${d.rating}</div></div>
     </div>
+    ${d.fairShareEnabled ? `<p style="font-size:12px;color:var(--coffee-500);margin:8px 0;">${CURRENT_LANG === 'ta'
+      ? `நியாயமான பங்கு முறை: Store தொகுப்பு ${fnum(d.poolMaxScore)} மதிப்பெண்களில் உங்கள் பங்களிப்பு ${fnum(d.rawEarnedScore)}. உங்கள் நியாயமான பங்கு ${fnum(d.fairShareScore)} (${d.fairShareStaffCount} பணியாளர்கள், வருகை காரணி ${fnum(d.attendanceFactor * 100)}%). மேலே உள்ள மதிப்பெண் இந்த நியாயமான பங்கை அடிப்படையாகக் கொண்ட 100-க்கான மதிப்பெண்.`
+      : `Fair-share method: you contributed ${fnum(d.rawEarnedScore)} of the Store pool of ${fnum(d.poolMaxScore)} marks. Your fair share is ${fnum(d.fairShareScore)} (${d.fairShareStaffCount} staff, attendance factor ${fnum(d.attendanceFactor * 100)}%). The score above is out of 100, measured against this fair share.`}</p>` : ''}
     <div class="card">
       <div class="table-wrap"><table><thead><tr>
         <th data-i18n="kpi">KPI</th><th>Month</th><th data-i18n="target">Target</th><th data-i18n="achievedQty">Achieved</th>
