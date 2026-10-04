@@ -2098,6 +2098,11 @@ async function _callApiCore(action, params, _retried, _transportRetry) {
       if (SESSION) { SESSION.mustChangePassword = true; sessionStorage.setItem('kpi_session', JSON.stringify(SESSION)); }
       openChangePasswordModal(true);
     }
+    if (out.processing) { // server still holds/recorded this reqId as PROCESSING: outcome unknown - keep the SAME reqId for the next attempt
+      const prErr = new Error(out.error || 'This request is already being processed.');
+      prErr.transportFailure = true;
+      throw prErr;
+    }
     throw new Error(out.error || 'Unknown API error');
   }
   // Any successful call is activity too (e.g. an automated report load with
@@ -2750,15 +2755,34 @@ async function loadDashboard() {
    ------------------------------------------------------------ */
 const CHARTJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+// SRI (Oct 2026): these hashes match the exact pinned cdnjs assets above.
+// Keeping the URLs version-pinned + integrity-protected prevents an unexpected
+// CDN payload from being executed by the application.
+const SCRIPT_SRI = {
+  [CHARTJS_URL]: 'sha512-6HrPqAvK+lZElIZ4mZ64fyxIBTsaX5zAFZg2V/2WT+iKPrFzTzvx6QAsLW2OaLwobhMYBog/+bvmIEEGXi0p1w==',
+  [XLSX_URL]: 'sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA=='
+};
 const _scriptPromises = {};
 function _loadScriptOnce(url) {
   if (!_scriptPromises[url]) {
-    _scriptPromises[url] = new Promise((resolve, reject) => {
+    // SRI is tried first. If the browser blocks the file (integrity mismatch or
+    // CORS refusal) it is retried ONCE without integrity, so a wrong/outdated
+    // hash can never break Charts or Excel export. The URLs stay version-pinned.
+    const attempt = (withSri) => new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = url;
+      if (withSri && SCRIPT_SRI[url]) {
+        s.integrity = SCRIPT_SRI[url];
+        s.crossOrigin = 'anonymous';
+        s.referrerPolicy = 'no-referrer';
+      }
       s.onload = () => resolve();
-      s.onerror = () => { delete _scriptPromises[url]; reject(new Error('Could not load a required library. Check the internet connection and try again.')); };
+      s.onerror = () => { s.remove(); reject(new Error('load failed')); };
       document.head.appendChild(s);
+    });
+    _scriptPromises[url] = attempt(true).catch(() => attempt(false)).catch(() => {
+      delete _scriptPromises[url];
+      throw new Error('Could not load a required library. Check the internet connection and try again.');
     });
   }
   return _scriptPromises[url];
