@@ -3338,12 +3338,12 @@ async function saveEditDraft() {
 
 const REGISTER_VISIBLE_DAYS = 90;
 // Working Register display window (hours). Approved lines stay visible for
-// 12 h after approval, Rejected lines for 36 h after rejection. Draft /
+// 12 h after approval, Rejected lines for 24 h after rejection. Draft /
 // Submitted lines stay visible until approved/rejected; Draft lines are not
 // shown here ("My Drafts" card). Display only - data, reports and the
 // Correct Approved Qty card are unaffected.
 const REGISTER_APPROVED_HOURS = 12;
-const REGISTER_REJECTED_HOURS = 36;
+const REGISTER_REJECTED_HOURS = 24;
 function registerLineVisible(r) {
   const st = r['Approval Status'];
   if (st === 'Draft') return false;   // Drafts live in the "My Drafts" card
