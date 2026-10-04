@@ -1513,6 +1513,7 @@ const I18N = {
   role: { en: "Role", ta: "பங்கு" },
   savedAsDraft: { en: "Saved as draft", ta: "வரைவாகச் சேமிக்கப்பட்டது" },
   submittedForApproval: { en: "Submitted for approval", ta: "ஒப்புதலுக்காக சமர்ப்பிக்கப்பட்டது" },
+  submitNotConfirmed: { en: "Saved, but the server did not confirm Submit. Please check My Drafts and submit again.", ta: "சேமிக்கப்பட்டது, ஆனால் சமர்ப்பிப்பு உறுதிப்படுத்தப்படவில்லை. வரைவுகளைச் சரிபார்த்து மீண்டும் சமர்ப்பிக்கவும்." },
   selectDate: { en: "Select a date", ta: "ஒரு தேதியைத் தேர்ந்தெடுக்கவும்" },
   selectActivity: { en: "Select an activity", ta: "ஒரு செயல்பாட்டைத் தேர்ந்தெடுக்கவும்" },
   tickWorkflow: { en: "Tick at least one workflow", ta: "குறைந்தது ஒரு பணிப்பாய்வையாவது தேர்வு செய்யவும்" },
@@ -1748,10 +1749,8 @@ const I18N = {
   editAttendance: { en: "Edit Attendance", ta: "வருகை பதிவை திருத்து" },
   attendanceUpdated: { en: "Attendance updated", ta: "வருகை பதிவு புதுப்பிக்கப்பட்டது" },
   recordNotFound: { en: "Record not found", ta: "பதிவு கிடைக்கவில்லை" },
-  saveChanges: { en: "Save Changes", ta: "மாற்றங்களை சேமி" },
   edit: { en: "Edit", ta: "திருத்து" },
   actions: { en: "Actions", ta: "செயல்கள்" },
-  selectStaffFirst: { en: "Select a staff member first" },
   // ---- PER-STAFF APPRAISAL TREND (Aug 2026) ----
   staffTrendTitle: { en: "Appraisal Trend", ta: "மதிப்பீட்டு போக்கு" },
   noSnapshotsYet: { en: "No saved snapshots yet for this staff.", ta: "இந்த ஊழியருக்கு இதுவரை சேமிக்கப்பட்ட ஸ்னாப்ஷாட் இல்லை." },
@@ -1892,7 +1891,7 @@ function hasTeamWorkflows(activityId) {
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
 const _apiCache = new Map();
-const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getMonthlyWorkflowBalances','getTargetDashboard','getDisciplinaryActions','getMasters','getAppraisal','getRecognitions','getManualScores','getTrainingRecords','getHRManagementSummary','getHRDashboard','getHRLiveDashboard','getPendingAttendanceVerification']);
+const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getWorkingRegisterPageData','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getMonthlyWorkflowBalances','getTargetDashboard','getDisciplinaryActions','getMasters','getAppraisal','getRecognitions','getManualScores','getTrainingRecords','getHRManagementSummary','getHRDashboard','getHRLiveDashboard','getPendingAttendanceVerification']);
 // REQUEST QUEUE (Sep 2026): Apps Script's echo URL intermittently 404s when many
 // calls are in flight together (e.g. page load). Limit concurrent API calls so
 // the rest wait their turn. login/runBackupNow bypass the queue.
@@ -1907,7 +1906,66 @@ function _apiRelease() {
   const next = _apiWaiters.shift();
   if (next) next(); else _apiActive--;
 }
-async function callApi(action, params, _retried, _transportRetry) {
+// ============================================================
+// IDEMPOTENT WRITES (Oct 2026 go-live fix)
+// ============================================================
+// Every state-changing call carries a request id (reqId). The id belongs to
+// the LOGICAL operation, not to each HTTP attempt:
+//   * automatic transport/session retries inside _callApiCore() re-send the
+//     SAME params object, so they keep the same reqId;
+//   * if an attempt ends with an UNKNOWN outcome (network lost/timeout/non-JSON
+//     reply after all automatic retries), the id is remembered for 15 minutes
+//     against the exact payload, so the user pressing the button again with the
+//     same data re-uses it and the server replays the earlier result instead of
+//     saving twice;
+//   * a business error (validation failure) or a success forgets it - the next
+//     attempt is a new logical operation with a new id;
+//   * an identical write that is still in flight (double-click) is collapsed
+//     into the same promise instead of being sent twice.
+// Two genuinely separate jobs are separate user actions after the first one
+// finished, so they get different ids and are both saved. The server
+// (handle() -> _runIdempotent_) is the authority: it stores the result per
+// (session user, action, reqId) under the script lock.
+const _inflightWrites = new Map();   // payload signature -> Promise
+const _unresolvedWrites = new Map(); // payload signature -> { reqId, t }
+const _UNRESOLVED_TTL_MS = 15 * 60 * 1000;
+function _newRequestId() {
+  try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+function _stableJson(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v === undefined ? null : v);
+  if (Array.isArray(v)) return '[' + v.map(_stableJson).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + _stableJson(v[k])).join(',') + '}';
+}
+function _writeSignature(action, params) {
+  const c = {};
+  Object.keys(params).forEach(k => { if (k !== 'token' && k !== 'reqId') c[k] = params[k]; });
+  return action + '|' + _stableJson(c);
+}
+function callApi(action, params, _retried, _transportRetry) {
+  params = params || {};
+  const isWrite = !/^get/.test(action) && action !== 'login' && action !== 'ping' && action !== 'warm';
+  if (!isWrite || params.reqId || _retried || _transportRetry) return _callApiCore(action, params, _retried, _transportRetry);
+  const sig = _writeSignature(action, params);
+  if (_inflightWrites.has(sig)) return _inflightWrites.get(sig); // double-click: same operation, don't send twice
+  const now = Date.now();
+  _unresolvedWrites.forEach((v, k) => { if (now - v.t > _UNRESOLVED_TTL_MS) _unresolvedWrites.delete(k); });
+  const prev = _unresolvedWrites.get(sig);
+  params.reqId = prev ? prev.reqId : _newRequestId();
+  const reqId = params.reqId;
+  const p = _callApiCore(action, params, _retried, _transportRetry).then(
+    out => { _unresolvedWrites.delete(sig); return out; },
+    err => {
+      if (err && err.transportFailure) _unresolvedWrites.set(sig, { reqId: reqId, t: Date.now() });
+      else _unresolvedWrites.delete(sig);
+      throw err;
+    }
+  ).finally(() => { _inflightWrites.delete(sig); });
+  _inflightWrites.set(sig, p);
+  return p;
+}
+async function _callApiCore(action, params, _retried, _transportRetry) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
   }
@@ -1929,7 +1987,7 @@ async function callApi(action, params, _retried, _transportRetry) {
   // automatic retries. The server remembers it, so a retry after an echo-404 never
   // saves the same entry twice.
   if (!_isRead && action !== 'login' && !params.reqId) {
-    params.reqId = Date.now() + '_' + Math.random().toString(36).slice(2);
+    params.reqId = _newRequestId();
   }
   // SECURITY (see code.gs handle()): every action except 'login' must carry
   // the session token issued at login - the backend uses it to look up the
@@ -1977,9 +2035,11 @@ async function callApi(action, params, _retried, _transportRetry) {
     _releaseSlot();
     if (transportAttempt < 2) {
       await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
-      return callApi(action, params, _retried, transportAttempt + 1);
+      return _callApiCore(action, params, _retried, transportAttempt + 1);
     }
-    throw new Error('Could not reach the server for "' + action + '" after retrying. Please check your connection and try again.');
+    const tErr = new Error('Could not reach the server for "' + action + '" after retrying. Please check your connection and try again.');
+    tErr.transportFailure = true; // outcome unknown - the write may or may not have been saved (see callApi)
+    throw tErr;
   }
   // DEFENSIVE PARSE (bugfix): res.json() used to be called directly here. If
   // Apps Script ever answers with an HTML page instead of our JSON - a stale/
@@ -1997,11 +2057,13 @@ async function callApi(action, params, _retried, _transportRetry) {
   } catch (parseErr) {
     if (transportAttempt < 2) {
       await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
-      return callApi(action, params, _retried, transportAttempt + 1);
+      return _callApiCore(action, params, _retried, transportAttempt + 1);
     }
-    throw new Error('Server returned an unexpected response (not JSON) for "' + action + '" after retrying. ' +
+    const pErr = new Error('Server returned an unexpected response (not JSON) for "' + action + '" after retrying. ' +
       'This usually means the deployment URL is stale, or a permission/session issue on the Apps Script side. ' +
       'Try reloading the page; if it persists, check that API_URL matches the current Web App deployment.');
+    pErr.transportFailure = true; // outcome unknown - the write may or may not have been saved
+    throw pErr;
   }
   if (!out.ok) {
     if (out.sessionExpired) {
@@ -2016,7 +2078,7 @@ async function callApi(action, params, _retried, _transportRetry) {
       const attempt = _retried || 0;
       if (attempt < 3 && action !== 'login') {
         await new Promise(r => setTimeout(r, 500 * (attempt + 1))); // 500ms, 1000ms, 1500ms
-        return callApi(action, params, attempt + 1);
+        return _callApiCore(action, params, attempt + 1);
       }
       logout();
       throw new Error('Your session expired. Please log in again.');
@@ -2030,7 +2092,7 @@ async function callApi(action, params, _retried, _transportRetry) {
       // PWD-CHANGE FIX: this request left BEFORE the password was changed, so the
       // server's 'must change' answer is outdated - re-send it instead of
       // re-opening the change-password popup.
-      return callApi(action, params, _retried, _transportRetry);
+      return _callApiCore(action, params, _retried, _transportRetry);
     }
     if (out.mustChangePassword) {
       if (SESSION) { SESSION.mustChangePassword = true; sessionStorage.setItem('kpi_session', JSON.stringify(SESSION)); }
@@ -2810,10 +2872,11 @@ function regEntryMonthLabel() {
   return dateVal ? monthInputToLabel(dateVal.slice(0, 7)) : monthInputToLabel(currentMonthInputValue());
 }
 
-async function loadCurrentMonthTargets() {
+async function loadCurrentMonthTargets(preloadedRows) {
   const month = regEntryMonthLabel();
   try {
-    const rows = await callApi('getMonthlyWorkflowBalances', { month });
+    // PERF: loadRegister() passes the rows already returned by the combined call.
+    const rows = Array.isArray(preloadedRows) ? preloadedRows : await callApi('getMonthlyWorkflowBalances', { month });
     const map = {};
     rows.forEach(r => { map[r.workflowId] = r; });
     CURRENT_MONTH_KPI_STATUS = map;
@@ -3038,10 +3101,24 @@ async function saveWorkingEntries(mode) {
       return;
     }
   }
+  if (_regSaveBusy) return; // double-click / second tap while the first save is still running
+  _regSaveBusy = true;
+  const _regBtns = document.querySelectorAll('button[onclick^="saveWorkingEntries"]');
+  _regBtns.forEach(b => { b.disabled = true; });
   try {
-    // SPEED (Sep 2026): Submit is now ONE server call (rows are saved directly as
+    // SPEED (Sep 2026): Submit is ONE server call (rows are saved directly as
     // Submitted) instead of addWorkingEntries + submitEntryGroup.
-    await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines, submit: mode === 'Submitted' });
+    // RETRY SAFETY (Oct 2026): callApi() attaches a request id to this write and
+    // re-uses it on automatic/manual retries of the same payload, so a lost
+    // response can never create a second copy (see IDEMPOTENT WRITES above).
+    const saved = await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines, submit: mode === 'Submitted' });
+    // P0 (Oct 2026): "Submitted" is only shown when the SERVER confirms the rows
+    // were stored as Submitted. Anything else is reported honestly.
+    if (mode === 'Submitted' && !(saved && saved.status === 'Submitted')) {
+      toast(T('submitNotConfirmed'));
+      loadRegister();
+      return;
+    }
     toast(mode === 'Submitted' ? T('submittedForApproval') : T('savedAsDraft'));
     document.getElementById('regActivity').value = '';
     document.getElementById('regRemarks').value = '';
@@ -3049,7 +3126,9 @@ async function saveWorkingEntries(mode) {
     document.getElementById('wfChecklist').innerHTML = '';
     loadRegister();
   } catch (e) { toast(e.message); }
+  finally { _regSaveBusy = false; _regBtns.forEach(b => { b.disabled = false; }); }
 }
+let _regSaveBusy = false;
 
 // Groups an Entry Group's flat participant rows (g.lines - one row per
 // participant per workflow, see addWorkingEntries) back into one item per
@@ -3088,14 +3167,17 @@ function groupEntryLinesByWorkflow(g) {
   return order.map(key => Object.assign({}, map[key], { coStaffNames: map[key].coStaffNames.join(', ') }));
 }
 
-async function loadMyDrafts() {
+async function loadMyDrafts(preloadedGroups) {
   if (!SESSION) return;
   const card = document.getElementById('myDraftsCard');
   if (SESSION.role !== 'Staff') { card.style.display = 'none'; return; }
   card.style.display = 'block';
   let groups;
-  try { groups = await callApi('getEntryGroups', { status: 'Draft', staffId: SESSION.staffId }); }
-  catch (e) { toast(e.message); return; }
+  if (Array.isArray(preloadedGroups)) groups = preloadedGroups; // PERF: from the combined call
+  else {
+    try { groups = await callApi('getEntryGroups', { status: 'Draft', staffId: SESSION.staffId }); }
+    catch (e) { toast(e.message); return; }
+  }
   const list = document.getElementById('myDraftsList');
   if (groups.length === 0) { list.innerHTML = `<div class="empty">${T('noDrafts')}</div>`; return; }
   groups.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -3235,7 +3317,6 @@ async function loadRegister() {
   if (!SESSION) return;
   populateRegActivitySelect();
   initCorrectQtyCard();
-  loadMyDrafts();
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
   // PERF (Sep 2026, item 3): only fetch the last REGISTER_VISIBLE_DAYS days.
   // The table shows at most 50 rows anyway, but the server used to send the
@@ -3243,6 +3324,7 @@ async function loadRegister() {
   // server-side against the full approved set, so scores are unaffected.
   const regFrom = new Date(); regFrom.setDate(regFrom.getDate() - REGISTER_VISIBLE_DAYS);
   p.from = localDateStr(regFrom);
+  p.includeOpen = true; // never let the date window hide a Submitted entry still waiting for approval
   // PERF FIX (Sep 2026, load-time audit): loadCurrentMonthTargets() and
   // getWorkingRegister are independent of each other (current-month target
   // hints vs. the register rows themselves), but this used to await them
@@ -3252,15 +3334,29 @@ async function loadRegister() {
   // two is slower, instead of the sum of both. loadCurrentMonthTargets()
   // never throws (it catches its own errors internally), so only the
   // getWorkingRegister call needs the try/catch below.
-  let rows;
+  // PERF (Oct 2026): ONE combined call (register + month balances + drafts)
+  // instead of three. If it fails for any reason (e.g. backend not yet
+  // redeployed), fall back to the original separate calls - same behaviour.
+  let rows, pageData = null;
   try {
-    const results = await Promise.all([
-      loadCurrentMonthTargets(),
-      callApi('getWorkingRegister', p)
-    ]);
-    rows = results[1];
+    pageData = await callApi('getWorkingRegisterPageData', Object.assign({ month: regEntryMonthLabel() }, p));
+    if (!pageData || !Array.isArray(pageData.register)) pageData = null;
+  } catch (e) { pageData = null; }
+  if (!SESSION) return;
+  try {
+    if (pageData) {
+      rows = pageData.register;
+      await loadCurrentMonthTargets(pageData.monthlyBalances); // null => it fetches its own (old path)
+    } else {
+      const results = await Promise.all([
+        loadCurrentMonthTargets(),
+        callApi('getWorkingRegister', p)
+      ]);
+      rows = results[1];
+    }
   } catch (e) { toast(e.message); return; }
   if (!SESSION) return; // session expired during the await above
+  loadMyDrafts(pageData ? pageData.draftGroups : undefined); // null/undefined => it fetches its own (old path)
   // if a checklist is already showing (e.g. user switches views and back),
   // refresh it so the KPI Target hints pick up the newly loaded targets
   if (document.getElementById('regActivity').value) renderWorkflowChecklist();
@@ -3270,9 +3366,19 @@ async function loadRegister() {
   // No (looked up against the FULL fetched set, not just the 50 shown, so a
   // teammate's row further down the list is still found). Individual
   // (non-team) rows have no Team Ref No and always show "—".
+  // PERF (Oct 2026): index rows by Team Ref No once (insertion order = the
+  // same sorted order the old per-row rows.filter() walked) so each label is a
+  // direct lookup instead of a full scan per row. Output is identical.
+  const teamMap = new Map();
+  rows.forEach(r => {
+    const ref = r['Team Ref No'];
+    if (!ref) return;
+    if (!teamMap.has(ref)) teamMap.set(ref, []);
+    teamMap.get(ref).push(r);
+  });
   const coStaffLabel = (row) => {
     if (!row['Team Ref No']) return '—';
-    const mates = rows.filter(r => r['Team Ref No'] === row['Team Ref No'] && r['Staff ID'] !== row['Staff ID']);
+    const mates = (teamMap.get(row['Team Ref No']) || []).filter(r => r['Staff ID'] !== row['Staff ID']);
     return mates.length ? escapeHtml(mates.map(m => m['Staff Name']).join(', ')) : '—';
   };
   tbody.innerHTML = rows.filter(registerLineVisible).map(r => {
@@ -3327,14 +3433,14 @@ function renderApprovalGroupCard(g) {
   const isSubmitted = g.status === 'Submitted';
   const isDraft = g.status === 'Draft';
   return `
-  <div class="card">
+  <div class="card" data-approval-card="${escapeHtml(g.groupId)}">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
       <div><strong>${fmtDate(g.date)}</strong> &middot; ${escapeHtml(g.lines[0]['Activity Name'])}</div>
       <span class="badge ${safeStatusClass(g.status)}">${escapeHtml(g.status)}</span>
     </div>
     <div style="font-size:12px;color:var(--coffee-500);margin-bottom:6px;">Logged By: ${escapeHtml(g.loggedByName)}</div>
     ${wfGroups.map(wg => `
-      <div style="border-top:1px solid #EEE0CC;padding:10px 0;">
+      <div data-approval-job="${escapeHtml(wg.lineIds.join(','))}" style="border-top:1px solid #EEE0CC;padding:10px 0;">
         <div style="font-weight:600;color:var(--coffee-700);">${escapeHtml(wg.workflowName)}</div>
         <div style="font-size:12.5px;color:var(--coffee-600);line-height:1.7;">
           Staff: <strong>${escapeHtml(wg.staffName)}</strong><br>
@@ -3350,7 +3456,7 @@ function renderApprovalGroupCard(g) {
       </div>
     `).join('')}
     ${isSubmitted && wfGroups.length > 1 ? `
-    <div style="margin-top:10px;">
+    <div data-approval-groupbar="1" style="margin-top:10px;">
       <button class="btn btn-outline btn-sm" data-action="decideApprovalGroup" data-id="${escapeHtml(g.groupId)}" data-decision="Approved">✅ ${T('approveAll')}</button>
     </div>` : ''}
     ${isDraft ? `
@@ -3387,7 +3493,8 @@ async function decideApprovalLines(lineIdsCsv, decision, btn) {
       await callApi('approveEntryLines', { lineIds, decision, reason });
     }
     toast(decision === 'Approved' ? T('decision_Approved') : T('decision_Rejected'));
-    refreshRegisterViews();
+    // PERF (Oct 2026): server confirmed - remove ONLY this job block. No full refresh.
+    removeApprovalJob(lineIdsCsv);
   } catch (e) {
     toast(e.message);
     siblingBtns.forEach(b => b.disabled = false);
@@ -3404,11 +3511,46 @@ async function decideApprovalGroup(groupId, decision, btn) {
   try {
     await callApi('approveEntryGroup', { groupId, decision, reason });
     toast(decision === 'Approved' ? T('decision_Approved') : T('decision_Rejected'));
-    refreshRegisterViews();
+    // PERF (Oct 2026): server confirmed - the whole group was decided, remove its card only.
+    removeApprovalCard(groupId);
   } catch (e) {
     toast(e.message);
     if (btn) btn.disabled = false;
   }
+}
+
+// ---- Approval list: targeted DOM removal after a CONFIRMED server success ----
+// (never optimistic - only called after callApi() resolved). If the element
+// can't be found (list re-rendered meanwhile) fall back to the old full reload.
+function _approvalEmptyCheck() {
+  const list = document.getElementById('approvalsList');
+  if (list && !list.querySelector('[data-approval-card]')) {
+    list.innerHTML = `<div class="card"><div class="empty">${T('noEntriesYet')}</div></div>`;
+  }
+}
+function removeApprovalJob(lineIdsCsv) {
+  let jobEl = null;
+  document.querySelectorAll('#approvalsList [data-approval-job]').forEach(el => {
+    if (!jobEl && el.getAttribute('data-approval-job') === lineIdsCsv) jobEl = el;
+  });
+  if (!jobEl) { loadApprovals(); return; }
+  const card = jobEl.closest('[data-approval-card]');
+  jobEl.remove();
+  if (card) {
+    const remaining = card.querySelectorAll('[data-approval-job]').length;
+    if (remaining === 0) card.remove();
+    else if (remaining < 2) { const bar = card.querySelector('[data-approval-groupbar]'); if (bar) bar.remove(); } // "Approve All" only shows for 2+ jobs
+  }
+  _approvalEmptyCheck();
+}
+function removeApprovalCard(groupId) {
+  let cardEl = null;
+  document.querySelectorAll('#approvalsList [data-approval-card]').forEach(el => {
+    if (!cardEl && el.getAttribute('data-approval-card') === groupId) cardEl = el;
+  });
+  if (!cardEl) { loadApprovals(); return; }
+  cardEl.remove();
+  _approvalEmptyCheck();
 }
 
 /* ============================================================
@@ -4668,9 +4810,14 @@ async function loadCorrectQtyLines() {
   tbody.innerHTML = rows.map(r => {
     CORRECT_QTY_ROWS[r['Line ID']] = r;
     return `<tr><td>${fmtDate(r['Date'])}</td><td>${escapeHtml(String(r['Actual']))}</td>
-      <td>${Number(r['Team Split Size']) > 1 ? escapeHtml(String(r['Team Ref No'] || 'Team')) : '—'}</td>
+      <td>${Number(r['Team Split Size']) > 1 ? escapeHtml(shortTeamRef(r['Team Ref No'] || 'Team')) : '—'}</td>
       <td><button class="btn btn-outline btn-sm" onclick="openCorrectQty('${escapeHtml(r['Line ID'])}')">✏️ ${T('correctQtyBtn')}</button></td></tr>`;
   }).join('') || `<tr><td colspan="4" class="empty">${T('cqNone')}</td></tr>`;
+}
+// New Team Ref Nos are 'TS-' + a UUID (long); show a short, still-recognisable tail. Older 'TS<timestamp>_n' refs are shown as-is.
+function shortTeamRef(ref) {
+  const s = String(ref || '');
+  return /^TS-[0-9a-f]{8}-/i.test(s) ? 'TS-' + s.slice(-6) : s;
 }
 function openCorrectQty(lineId) {
   const r = CORRECT_QTY_ROWS[lineId];
@@ -5393,7 +5540,7 @@ function renderReportSummaryCards(s) {
 function exportReportCsv() {
   if (!lastReportRows.length) { toast(T('runReportFirst')); return; }
   const headers = lastReportColumns.map(c => T(c.labelKey));
-  const csvEsc = (v) => { const s = (v === null || v === undefined) ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csvEsc = (v) => { let s = (v === null || v === undefined) ? '' : String(v); if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s; /* spreadsheet formula-injection guard */ return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [headers.map(csvEsc).join(',')];
   lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
@@ -5438,6 +5585,8 @@ async function exportXlsx(rows, filename) {
   // xlsx (~1 MB) is downloaded on the first export only, then cached by the browser.
   if (!window.XLSX) toast('Preparing Excel export...');
   try { await ensureXlsx(); } catch (e) { toast(e.message); return; }
+  // Formula-injection guard: text starting with = + - @ would run as a formula in Excel.
+  rows = rows.map(r => { const o = {}; Object.keys(r).forEach(k => { let v = r[k]; if (typeof v === 'string' && /^[=+\-@\t\r]/.test(v) && !/^[-+]?\d+(\.\d+)?$/.test(v)) v = "'" + v; o[k] = v; }); return o; });
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Report');
