@@ -3676,6 +3676,10 @@ async function loadAttendance() {
     document.getElementById('attDate').value = localDateStr(new Date());
   }
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
+  // CURRENT-MONTH VIEW (Oct 2026): show only this month's attendance, PLUS any older day that is
+  // still not Verified (Pending/Disputed) so nothing waiting for a check is ever hidden.
+  p.from = localDateStr(new Date()).slice(0, 8) + '01';
+  p.includeOpen = true;
   // PERF FIX (Sep 2026, load-time audit): this used to be called AFTER the
   // main table below had already finished loading, so the Verify panel's
   // own round trip only started once getAttendance fully completed. It's a
