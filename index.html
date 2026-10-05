@@ -660,6 +660,30 @@ main.content{
         <div id="approvalsList"></div>
       </section>
 
+      <!-- WORKFLOW ASSIGNMENT (Manager/HR, Oct 2026): per-staff workflows that define each staff's own 100 -->
+      <section class="view" id="view-wfAssign">
+        <h2 class="view-title" data-i18n="waTitle">Workflow Assignment</h2>
+        <p class="view-sub" data-i18n="waSub">Tick the workflows each staff is responsible for. Stores KPI % is measured against only these workflows, so every staff can reach 100. Several staff can share a workflow. A staff with nothing assigned is measured against all workflows. Changes apply from the chosen month; closed months never change.</p>
+        <div class="card">
+          <div class="form-row">
+            <div><label for="waStaff" data-i18n="waStaff">Staff</label><select id="waStaff" onchange="renderWfAssignChecklist()"></select></div>
+            <div><label for="waMonth" data-i18n="waMonth">Effective From Month</label><input type="month" id="waMonth" onchange="refreshWfAssignments()"></div>
+          </div>
+          <div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="waSetAll(true)" data-i18n="waSelectAll">Select All</button>
+            <button class="btn btn-outline" onclick="waSetAll(false)" data-i18n="waClearAll">Clear All</button>
+          </div>
+          <div id="waChecklist"></div>
+          <div style="margin-top:12px;"><button class="btn" onclick="saveWfAssignment()" data-i18n="waSave">Save Assignment</button></div>
+        </div>
+        <div class="card">
+          <h3 data-i18n="waSummary">Assignment Summary</h3>
+          <div class="table-wrap"><table id="waSummaryTable"><thead><tr>
+            <th data-i18n="staff">Staff</th><th data-i18n="waAssigned">Assigned Workflows</th>
+          </tr></thead><tbody></tbody></table></div>
+        </div>
+      </section>
+
       <!-- EDIT WORKFLOW (Manager only) -->
       <section class="view" id="view-editWorkflow">
         <h2 class="view-title" data-i18n="editWorkflowTitle">Edit Workflow</h2>
@@ -1366,6 +1390,20 @@ const I18N = {
   attGapUnmarked: { en: "Unmarked", ta: "பதிவாகாதவை" },
   attGapDates: { en: "Unmarked Dates", ta: "பதிவாகாத தேதிகள்" },
   attGapNone: { en: "No unmarked days", ta: "பதிவாகாத நாட்கள் இல்லை" },
+  waTitle: { en: "Workflow Assignment", ta: "பணிப்பாய்வு ஒதுக்கீடு" },
+  waSub: { en: "Tick the workflows each staff is responsible for. Stores KPI % is measured against only these workflows, so every staff can reach 100. Several staff can share a workflow. A staff with nothing assigned is measured against all workflows. Changes apply from the chosen month; closed months never change.", ta: "ஒவ்வொரு பணியாளரும் பொறுப்பேற்கும் பணிப்பாய்வுகளைத் தேர்வு செய்யவும். Stores KPI % இந்தப் பணிப்பாய்வுகளுக்கு எதிராக மட்டுமே கணக்கிடப்படும், எனவே ஒவ்வொருவரும் 100 எட்டலாம். பல பணியாளர்கள் ஒரே பணிப்பாய்வைப் பகிரலாம். எதுவும் ஒதுக்கப்படாதவர் அனைத்துப் பணிப்பாய்வுகளுக்கும் எதிராக மதிப்பிடப்படுவார். மாற்றம் தேர்ந்த மாதம் முதல் பொருந்தும்; முடிந்த மாதங்கள் மாறாது." },
+  waStaff: { en: "Staff", ta: "பணியாளர்" },
+  waMonth: { en: "Effective From Month", ta: "பொருந்தும் மாதம் (முதல்)" },
+  waSelectAll: { en: "Select All", ta: "அனைத்தும் தேர்வு" },
+  waClearAll: { en: "Clear All", ta: "அனைத்தும் நீக்கு" },
+  waSave: { en: "Save Assignment", ta: "ஒதுக்கீட்டைச் சேமி" },
+  waSummary: { en: "Assignment Summary", ta: "ஒதுக்கீட்டுச் சுருக்கம்" },
+  waAssigned: { en: "Assigned Workflows", ta: "ஒதுக்கப்பட்ட பணிப்பாய்வுகள்" },
+  waNoAssign: { en: "All workflows (no assignment)", ta: "அனைத்துப் பணிப்பாய்வுகள் (ஒதுக்கீடு இல்லை)" },
+  waPickStaff: { en: "Select a staff first", ta: "முதலில் பணியாளரைத் தேர்வு செய்யவும்" },
+  waTeamTag: { en: "Team", ta: "குழு" },
+  waClearConfirm: { en: "No workflow is ticked. This staff will be measured against all workflows from the chosen month. Continue?", ta: "எந்தப் பணிப்பாய்வும் தேர்வாகவில்லை. தேர்ந்த மாதம் முதல் இவர் அனைத்துப் பணிப்பாய்வுகளுக்கும் எதிராக மதிப்பிடப்படுவார். தொடரவா?" },
+  waSaved: { en: "Assignment saved", ta: "ஒதுக்கீடு சேமிக்கப்பட்டது" },
   noPendingVerification: { en: "Nothing pending verification", ta: "சரிபார்க்க எதுவும் நிலுவையில் இல்லை" },
   checkReviewPending: { en: "🔍 Check Review Pending", ta: "🔍 மதிப்பாய்வு நிலுவை பார்" },
   reviewPendingTitle: { en: "HR Review Pending", ta: "HR மதிப்பாய்வு நிலுவையில்" },
@@ -2244,6 +2282,8 @@ const NAV_ITEMS = [
   { id: 'targetStatus', label: '📈 Target Status', labelTa: '📈 இலக்கு நிலை', roles: ['Manager', 'Staff'] },
   { id: 'approvals', label: '✅ Approvals', labelTa: '✅ ஒப்புதல்கள்', roles: ['Manager'] },
   { id: 'editWorkflow', label: '⚙️ Edit Workflow', labelTa: '⚙️ பணிப்பாய்வு திருத்தம்', roles: ['Manager'] },
+  // Workflow Assignment hidden (Oct 2026): policy is 100% weightage based - every staff is scored against the full pool, so assignment no longer changes any score.
+  // { id: 'wfAssign', label: '🧩 Workflow Assignment', labelTa: '🧩 பணிப்பாய்வு ஒதுக்கீடு', roles: ['Manager', 'HR'] },
   { id: 'attendance', label: '🗓️ Attendance', labelTa: '🗓️ வருகைப் பதிவு', roles: ['Manager', 'Staff'] },
   { id: 'leave', label: '🌴 Leave', labelTa: '🌴 விடுப்பு', roles: ['Manager', 'Staff'] },
   { id: 'myMemos', label: '📄 My Memos', labelTa: '📄 எனது மெமோக்கள்', roles: ['Staff'] },
@@ -2306,6 +2346,7 @@ function showView(id) {
   if (id === 'targetStatus') loadTargetStatus();
   if (id === 'approvals') loadApprovals();
   if (id === 'editWorkflow') loadWorkflowEditList();
+  if (id === 'wfAssign') loadWfAssignPage();
   if (id === 'attendance') loadAttendance();
   if (id === 'leave') loadLeave();
   if (id === 'myMemos') loadMyMemos();
@@ -3860,6 +3901,63 @@ async function loadAttendanceGapReport() {
       <td><span class="badge ${r.unmarkedDays > 0 ? 'Rejected' : 'Approved'}">${r.unmarkedDays}</span></td>
       <td>${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</td>
     </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('attGapNone')}</td></tr>`;
+}
+
+// WORKFLOW ASSIGNMENT (Oct 2026): Manager/HR picks the workflows each staff is responsible for.
+// Backend (saveStaffWorkflowAssignment / getStaffWorkflowAssignments) owns every rule and the KPI math;
+// this page only ticks workflows and sends the list.
+let WA_ASSIGNMENTS = {};
+function waMonthLabel() {
+  const v = document.getElementById('waMonth').value; // yyyy-mm
+  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const m = /^(\d{4})-(\d{2})$/.exec(v || '');
+  return m ? names[Number(m[2]) - 1] + '-' + m[1] : '';
+}
+async function loadWfAssignPage() {
+  if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
+  const mEl = document.getElementById('waMonth');
+  if (!mEl.value) { const n = new Date(); mEl.value = n.getFullYear() + '-' + ('0' + (n.getMonth() + 1)).slice(-2); }
+  const sel = document.getElementById('waStaff');
+  if (!sel.dataset.loaded) {
+    sel.innerHTML = '<option value="">' + T('select') + '</option>' +
+      MASTERS.staff.filter(s => s['Status'] !== 'Inactive').map(s => `<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])}</option>`).join('');
+    sel.dataset.loaded = '1';
+  }
+  await refreshWfAssignments();
+}
+async function refreshWfAssignments() {
+  let d;
+  try { d = await callApi('getStaffWorkflowAssignments', { month: waMonthLabel() }); } catch (e) { toast(e.message); return; }
+  WA_ASSIGNMENTS = d.assignments || {};
+  document.querySelector('#waSummaryTable tbody').innerHTML = MASTERS.staff.filter(s => s['Status'] !== 'Inactive').map(s => {
+    const n = (WA_ASSIGNMENTS[s['Staff ID']] || []).length;
+    return `<tr><td>${escapeHtml(s['Staff Name'])}</td><td>${n > 0 ? n : T('waNoAssign')}</td></tr>`;
+  }).join('');
+  renderWfAssignChecklist();
+}
+function renderWfAssignChecklist() {
+  const box = document.getElementById('waChecklist');
+  const staffId = document.getElementById('waStaff').value;
+  if (!staffId) { box.innerHTML = `<p class="view-sub">${T('waPickStaff')}</p>`; return; }
+  const mine = WA_ASSIGNMENTS[staffId] || [];
+  box.innerHTML = MASTERS.activities.filter(a => a['Activity ID'] !== 'ACT009').map(a => {
+    const wfs = MASTERS.workflows.filter(w => w['Activity ID'] === a['Activity ID'] && w['Status'] !== 'Inactive');
+    if (!wfs.length) return '';
+    return `<div style="margin-bottom:10px;"><div style="font-weight:600;color:var(--coffee-700);margin-bottom:4px;">${escapeHtml(a['Activity Name'])}</div>` +
+      wfs.map(w => `<label style="display:block;padding:3px 0;"><input type="checkbox" class="wa-wf" value="${escapeHtml(w['Workflow ID'])}" ${mine.indexOf(w['Workflow ID']) !== -1 ? 'checked' : ''}> ${escapeHtml(w['Workflow Name'])} (${escapeHtml(String(w['Weightage %']))}%)${TEAM_WORKFLOW_IDS.indexOf(w['Workflow ID']) !== -1 ? ' · ' + T('waTeamTag') : ''}</label>`).join('') + '</div>';
+  }).join('');
+}
+function waSetAll(on) { document.querySelectorAll('#waChecklist .wa-wf').forEach(c => { c.checked = on; }); }
+async function saveWfAssignment() {
+  const staffId = document.getElementById('waStaff').value;
+  if (!staffId) { toast(T('waPickStaff')); return; }
+  const workflowIds = Array.from(document.querySelectorAll('#waChecklist .wa-wf:checked')).map(c => c.value);
+  if (!workflowIds.length && !confirm(T('waClearConfirm'))) return;
+  try {
+    await callApi('saveStaffWorkflowAssignment', { staffId, workflowIds, fromMonth: waMonthLabel() });
+    toast(T('waSaved'));
+    await refreshWfAssignments();
+  } catch (e) { toast(e.message); }
 }
 
 async function loadPendingAttendanceVerification() {
