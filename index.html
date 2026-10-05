@@ -728,6 +728,22 @@ main.content{
             <th data-i18n="date">Date</th><th data-i18n="staff">Staff</th><th data-i18n="status">Status</th><th data-i18n="permHrs">Permission Hrs</th><th data-i18n="remarks">Remarks</th><th></th>
           </tr></thead><tbody></tbody></table></div>
         </div>
+        <!-- ATTENDANCE GAP CHECK (Oct 2026): Manager/HR read-only warning listing days with NO attendance
+             row. Shows where marking was missed (the attendance factor and HR attendance % only see rows
+             that exist). Never changes any score - see getAttendanceGapReport() in code.gs. -->
+        <div class="card manager-hr-only" id="attendanceGapCard">
+          <h3 data-i18n="attGapTitle">Unmarked Attendance Check</h3>
+          <p class="view-sub" data-i18n="attGapSub">Working days with no attendance entry. Check this before running the monthly appraisal. It does not change any score.</p>
+          <div class="form-row">
+            <div><label for="agFrom" data-i18n="from">From</label><input type="date" id="agFrom"></div>
+            <div><label for="agTo" data-i18n="to">To</label><input type="date" id="agTo"></div>
+            <div style="align-self:end;"><button class="btn btn-outline" onclick="loadAttendanceGapReport()" data-i18n="attGapCheck">Check</button></div>
+          </div>
+          <p class="view-sub" id="agSummary"></p>
+          <div class="table-wrap"><table id="attendanceGapTable"><thead><tr>
+            <th data-i18n="staff">Staff</th><th data-i18n="attGapExpected">Working Days</th><th data-i18n="attGapMarked">Marked</th><th data-i18n="attGapUnmarked">Unmarked</th><th data-i18n="attGapDates">Unmarked Dates</th>
+          </tr></thead><tbody></tbody></table></div>
+        </div>
       </section>
 
       <!-- LEAVE -->
@@ -1342,6 +1358,14 @@ const I18N = {
   verifyBtn: { en: "✓ Verify", ta: "✓ சரிபார்" },
   disputeBtn: { en: "✗ Dispute", ta: "✗ மறு" },
   disputeReasonPrompt: { en: "Reason for disputing this attendance record (optional):", ta: "இந்த வருகைப் பதிவை மறுப்பதற்கான காரணம் (விருப்பம்):" },
+  attGapTitle: { en: "Unmarked Attendance Check", ta: "பதிவு செய்யாத வருகை சரிபார்ப்பு" },
+  attGapSub: { en: "Working days with no attendance entry. Check this before running the monthly appraisal. It does not change any score.", ta: "வருகை பதிவு இல்லாத வேலை நாட்கள். மாதாந்திர மதிப்பீட்டுக்கு முன் இதைச் சரிபார்க்கவும். இது எந்த மதிப்பெண்ணையும் மாற்றாது." },
+  attGapCheck: { en: "Check", ta: "சரிபார்" },
+  attGapExpected: { en: "Working Days", ta: "வேலை நாட்கள்" },
+  attGapMarked: { en: "Marked", ta: "பதிவானவை" },
+  attGapUnmarked: { en: "Unmarked", ta: "பதிவாகாதவை" },
+  attGapDates: { en: "Unmarked Dates", ta: "பதிவாகாத தேதிகள்" },
+  attGapNone: { en: "No unmarked days", ta: "பதிவாகாத நாட்கள் இல்லை" },
   noPendingVerification: { en: "Nothing pending verification", ta: "சரிபார்க்க எதுவும் நிலுவையில் இல்லை" },
   checkReviewPending: { en: "🔍 Check Review Pending", ta: "🔍 மதிப்பாய்வு நிலுவை பார்" },
   reviewPendingTitle: { en: "HR Review Pending", ta: "HR மதிப்பாய்வு நிலுவையில்" },
@@ -1632,6 +1656,14 @@ const I18N = {
   statusApproved: { en: "Approved", ta: "ஒப்புதல் அளிக்கப்பட்டது" },
   statusRejected: { en: "Rejected", ta: "நிராகரிக்கப்பட்டது" },
   repStaffPerf: { en: "📊 Staff Performance", ta: "📊 பணியாளர் செயல்திறன்" },
+  repStaffWfKpi: { en: "🔍 Staff Workflow KPI Audit", ta: "🔍 பணியாளர் Workflow KPI தணிக்கை" },
+  colWorkflow: { en: "Workflow", ta: "Workflow" },
+  colWfTarget: { en: "Workflow Target", ta: "Workflow இலக்கு" },
+  colPendingQty: { en: "Pending Qty", ta: "நிலுவை அளவு" },
+  colRejectedQty: { en: "Rejected Qty", ta: "நிராகரித்த அளவு" },
+  colWeightage: { en: "Weightage", ta: "எடை" },
+  colEarnedKpi: { en: "Earned KPI", ta: "பெற்ற KPI" },
+  colMaxKpi: { en: "Maximum KPI", ta: "அதிகபட்ச KPI" },
   repActivityPerf: { en: "📈 Activity Performance", ta: "📈 செயல்பாடு செயல்திறன்" },
   repActivityStaffPerf: { en: "📈 Activity - Staff Performance", ta: "📈 செயல்பாடு - பணியாளர் செயல்திறன்" },
   repStaffComparison: { en: "🏆 Staff Comparison", ta: "🏆 பணியாளர் ஒப்பீடு" },
@@ -3816,6 +3848,28 @@ function applyAttendanceRoleUI() {
   });
 }
 
+// ATTENDANCE GAP CHECK (Oct 2026): Manager/HR-only, read-only. Lists working days with no attendance
+// row per staff (backend: getAttendanceGapReport). Defaults to 1st of this month through yesterday.
+async function loadAttendanceGapReport() {
+  if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const from = document.getElementById('agFrom').value || (localDateStr(new Date()).slice(0, 8) + '01');
+  const to = document.getElementById('agTo').value || localDateStr(y);
+  document.getElementById('agFrom').value = from;
+  document.getElementById('agTo').value = to;
+  let d;
+  try { d = await callApi('getAttendanceGapReport', { from, to }); } catch (e) { toast(e.message); return; }
+  document.getElementById('agSummary').textContent = d.totalUnmarked > 0
+    ? `${d.totalUnmarked} ${T('attGapUnmarked')} (${d.workingDaysChecked} ${T('attGapExpected')})`
+    : T('attGapNone');
+  document.querySelector('#attendanceGapTable tbody').innerHTML = d.staff.map(r => `
+    <tr>
+      <td>${escapeHtml(r.staffName)}</td><td>${r.expectedDays}</td><td>${r.markedDays}</td>
+      <td><span class="badge ${r.unmarkedDays > 0 ? 'Rejected' : 'Approved'}">${r.unmarkedDays}</span></td>
+      <td>${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('attGapNone')}</td></tr>`;
+}
+
 async function loadPendingAttendanceVerification() {
   if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
   const p = {};
@@ -4100,7 +4154,7 @@ function scoreCardHtml(d) {
     return `
     <tr>
       <td>${escapeHtml(k.kpiName || k.workflowName)}</td><td>${escapeHtml(k.month)}</td><td>${k.target}</td>
-      <td>${k.achievedQty}</td><td>${k.approvedQty}</td><td>${k.sourceEntryCount}</td>
+      <td>${k.achievedQty}</td><td>${k.approvedQty}</td><td>${k.pendingQty || 0}</td><td>${k.rejectedQty || 0}</td><td>${k.sourceEntryCount}</td>
       <td>${rawPctLabel}</td><td>${ratingLabel}</td>
       <td>${k.weightagePct}</td><td>${k.kpiScore}</td><td>${k.maxScore}</td>
     </tr>`;
@@ -4112,10 +4166,13 @@ function scoreCardHtml(d) {
       <div class="stat-card"><div class="label">${T('grade')}</div><div class="value">${d.grade}</div></div>
       <div class="stat-card alt"><div class="label">${T('overallPerformance')}</div><div class="value" style="font-size:15px">${d.rating}</div></div>
     </div>
+    ${d.fairShareEnabled ? `<p style="font-size:12px;color:var(--coffee-500);margin:8px 0;">${CURRENT_LANG === 'ta'
+      ? `நியாயமான பங்கு முறை: Store தொகுப்பு ${fnum(d.poolMaxScore)} மதிப்பெண்களில் உங்கள் பங்களிப்பு ${fnum(d.rawEarnedScore)}. உங்கள் நியாயமான பங்கு ${fnum(d.fairShareScore)} (${d.fairShareStaffCount} பணியாளர்கள், வருகை காரணி ${fnum(d.attendanceFactor * 100)}%). மேலே உள்ள மதிப்பெண் இந்த நியாயமான பங்கை அடிப்படையாகக் கொண்ட 100-க்கான மதிப்பெண்.`
+      : `Fair-share method: you contributed ${fnum(d.rawEarnedScore)} of the Store pool of ${fnum(d.poolMaxScore)} marks. Your fair share is ${fnum(d.fairShareScore)} (${d.fairShareStaffCount} staff, attendance factor ${fnum(d.attendanceFactor * 100)}%). The score above is out of 100, measured against this fair share.`}</p>` : ''}
     <div class="card">
       <div class="table-wrap"><table><thead><tr>
         <th data-i18n="kpi">KPI</th><th>Month</th><th data-i18n="target">Target</th><th data-i18n="achievedQty">Achieved</th>
-        <th data-i18n="approvedQty">Approved</th><th>Source Entries</th>
+        <th data-i18n="approvedQty">Approved</th><th>Pending</th><th>Rejected</th><th>Source Entries</th>
         <th data-i18n="achievementPct">Achievement %</th><th>Rating</th>
         <th data-i18n="weightagePct">Weightage %</th><th data-i18n="kpiScore">KPI Score</th><th data-i18n="maxScore">Max Score</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
@@ -5163,6 +5220,20 @@ async function runBackupNow() {
    and never counting Draft/Submitted/Rejected rows as Approved Actual.
    ============================================================ */
 const REPORT_DEFS = {
+  // FIXED-TARGET KPI AUDIT (Oct 2026): Approved Qty vs the workflow's OWN fixed
+  // Monthly Target, one row per Staff + Workflow + Month. Pending/Rejected shown
+  // for audit only - they never earn marks.
+  staffWfKpi: {
+    action: 'getStaffWorkflowKpiAuditReport', labelKey: 'repStaffWfKpi', filters: ['date', 'section', 'staff'],
+    columns: [
+      { key: 'staffName', labelKey: 'staff' }, { key: 'staffId', labelKey: 'colStaffId' },
+      { key: 'workflowName', labelKey: 'colWorkflow' }, { key: 'month', labelKey: 'month' },
+      { key: 'target', labelKey: 'colWfTarget', fmt: 'num' }, { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' },
+      { key: 'pendingQty', labelKey: 'colPendingQty', fmt: 'num' }, { key: 'rejectedQty', labelKey: 'colRejectedQty', fmt: 'num' },
+      { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' }, { key: 'weightage', labelKey: 'colWeightage', fmt: 'num' },
+      { key: 'earnedKpi', labelKey: 'colEarnedKpi', fmt: 'num' }, { key: 'maxKpi', labelKey: 'colMaxKpi', fmt: 'num' }
+    ], totals: ['earnedKpi', 'maxKpi']
+  },
   staffPerf: {
     action: 'getStaffPerformanceReport', labelKey: 'repStaffPerf', filters: ['date', 'section', 'staff'],
     // isSummaryPlusRows: the server now returns { rows, summary }. summary
