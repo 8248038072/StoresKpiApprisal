@@ -728,6 +728,22 @@ main.content{
             <th data-i18n="date">Date</th><th data-i18n="staff">Staff</th><th data-i18n="status">Status</th><th data-i18n="permHrs">Permission Hrs</th><th data-i18n="remarks">Remarks</th><th></th>
           </tr></thead><tbody></tbody></table></div>
         </div>
+        <!-- ATTENDANCE GAP CHECK (Oct 2026): Manager/HR read-only warning listing days with NO attendance
+             row. Shows where marking was missed (the attendance factor and HR attendance % only see rows
+             that exist). Never changes any score - see getAttendanceGapReport() in code.gs. -->
+        <div class="card manager-hr-only" id="attendanceGapCard">
+          <h3 data-i18n="attGapTitle">Unmarked Attendance Check</h3>
+          <p class="view-sub" data-i18n="attGapSub">Working days with no attendance entry. Check this before running the monthly appraisal. It does not change any score.</p>
+          <div class="form-row">
+            <div><label for="agFrom" data-i18n="from">From</label><input type="date" id="agFrom"></div>
+            <div><label for="agTo" data-i18n="to">To</label><input type="date" id="agTo"></div>
+            <div style="align-self:end;"><button class="btn btn-outline" onclick="loadAttendanceGapReport()" data-i18n="attGapCheck">Check</button></div>
+          </div>
+          <p class="view-sub" id="agSummary"></p>
+          <div class="table-wrap"><table id="attendanceGapTable"><thead><tr>
+            <th data-i18n="staff">Staff</th><th data-i18n="attGapExpected">Working Days</th><th data-i18n="attGapMarked">Marked</th><th data-i18n="attGapUnmarked">Unmarked</th><th data-i18n="attGapDates">Unmarked Dates</th>
+          </tr></thead><tbody></tbody></table></div>
+        </div>
       </section>
 
       <!-- LEAVE -->
@@ -1342,6 +1358,14 @@ const I18N = {
   verifyBtn: { en: "✓ Verify", ta: "✓ சரிபார்" },
   disputeBtn: { en: "✗ Dispute", ta: "✗ மறு" },
   disputeReasonPrompt: { en: "Reason for disputing this attendance record (optional):", ta: "இந்த வருகைப் பதிவை மறுப்பதற்கான காரணம் (விருப்பம்):" },
+  attGapTitle: { en: "Unmarked Attendance Check", ta: "பதிவு செய்யாத வருகை சரிபார்ப்பு" },
+  attGapSub: { en: "Working days with no attendance entry. Check this before running the monthly appraisal. It does not change any score.", ta: "வருகை பதிவு இல்லாத வேலை நாட்கள். மாதாந்திர மதிப்பீட்டுக்கு முன் இதைச் சரிபார்க்கவும். இது எந்த மதிப்பெண்ணையும் மாற்றாது." },
+  attGapCheck: { en: "Check", ta: "சரிபார்" },
+  attGapExpected: { en: "Working Days", ta: "வேலை நாட்கள்" },
+  attGapMarked: { en: "Marked", ta: "பதிவானவை" },
+  attGapUnmarked: { en: "Unmarked", ta: "பதிவாகாதவை" },
+  attGapDates: { en: "Unmarked Dates", ta: "பதிவாகாத தேதிகள்" },
+  attGapNone: { en: "No unmarked days", ta: "பதிவாகாத நாட்கள் இல்லை" },
   noPendingVerification: { en: "Nothing pending verification", ta: "சரிபார்க்க எதுவும் நிலுவையில் இல்லை" },
   checkReviewPending: { en: "🔍 Check Review Pending", ta: "🔍 மதிப்பாய்வு நிலுவை பார்" },
   reviewPendingTitle: { en: "HR Review Pending", ta: "HR மதிப்பாய்வு நிலுவையில்" },
@@ -3814,6 +3838,28 @@ function applyAttendanceRoleUI() {
   document.querySelectorAll('.manager-hr-only').forEach(el => {
     el.style.display = canVerify ? '' : 'none';
   });
+}
+
+// ATTENDANCE GAP CHECK (Oct 2026): Manager/HR-only, read-only. Lists working days with no attendance
+// row per staff (backend: getAttendanceGapReport). Defaults to 1st of this month through yesterday.
+async function loadAttendanceGapReport() {
+  if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const from = document.getElementById('agFrom').value || (localDateStr(new Date()).slice(0, 8) + '01');
+  const to = document.getElementById('agTo').value || localDateStr(y);
+  document.getElementById('agFrom').value = from;
+  document.getElementById('agTo').value = to;
+  let d;
+  try { d = await callApi('getAttendanceGapReport', { from, to }); } catch (e) { toast(e.message); return; }
+  document.getElementById('agSummary').textContent = d.totalUnmarked > 0
+    ? `${d.totalUnmarked} ${T('attGapUnmarked')} (${d.workingDaysChecked} ${T('attGapExpected')})`
+    : T('attGapNone');
+  document.querySelector('#attendanceGapTable tbody').innerHTML = d.staff.map(r => `
+    <tr>
+      <td>${escapeHtml(r.staffName)}</td><td>${r.expectedDays}</td><td>${r.markedDays}</td>
+      <td><span class="badge ${r.unmarkedDays > 0 ? 'Rejected' : 'Approved'}">${r.unmarkedDays}</span></td>
+      <td>${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('attGapNone')}</td></tr>`;
 }
 
 async function loadPendingAttendanceVerification() {
