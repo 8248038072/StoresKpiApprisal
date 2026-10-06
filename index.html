@@ -1687,6 +1687,14 @@ const I18N = {
   // than reusing colMonthlyTarget (which every other report keeps, since
   // those genuinely show the full Workflow/Activity/Section target).
   colParticipatedTarget: { en: "Participated Target", ta: "பங்கேற்ற இலக்கு" },
+  // Staff Performance summary cards ONLY: these are DEPARTMENT-wide (each Team Ref No counted once),
+  // so they are labelled "Dept" to avoid being compared with the per-staff table columns, whose
+  // Participated Target is each staff's FULL workflow target (Oct 2026 fixed-target policy) and
+  // therefore legitimately adds up to more than the department target.
+  colDeptTarget: { en: "Dept Monthly Target", ta: "துறை மாதாந்திர இலக்கு" },
+  colDeptActual: { en: "Dept Approved Actual", ta: "துறை ஒப்புதல் உண்மையானது" },
+  colDeptBalance: { en: "Dept Balance", ta: "துறை மீதம்" },
+  colDeptAchievementPct: { en: "Dept Achievement %", ta: "துறை சாதனை %" },
   colApprovedActual: { en: "Approved Actual", ta: "ஒப்புதல் உண்மையானது" },
   colApprovedCount: { en: "Approved Count", ta: "ஒப்புதல் எண்ணிக்கை" },
   colBalance: { en: "Balance", ta: "மீதம்" },
@@ -1698,6 +1706,7 @@ const I18N = {
   colActivitiesCount: { en: "Activities Count", ta: "செயல்பாடுகள் எண்ணிக்கை" },
   colActivitiesNames: { en: "Activities (Names)", ta: "செயல்பாடுகள் (பெயர்கள்)" },
   colRating: { en: "Rating", ta: "மதிப்பீடு" },
+  colAchievementRating: { en: "Achievement Rating", ta: "சாதனை மதிப்பீடு" },
   colStaffId: { en: "Staff ID", ta: "பணியாளர் ID" },
   colActualCount: { en: "Actual Count", ta: "நிகழ் எண்ணிக்கை" },
   colTotalActivities: { en: "Total Activities", ta: "மொத்த செயல்பாடுகள்" },
@@ -5252,7 +5261,8 @@ const REPORT_DEFS = {
       { key: 'monthlyTarget', labelKey: 'colParticipatedTarget', fmt: 'num' }, { key: 'approvedActual', labelKey: 'colApprovedActual', fmt: 'num' },
       { key: 'balance', labelKey: 'colBalance', fmt: 'num' }, { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' },
       { key: 'kpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
-      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'badge' }
+      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'badge' },
+      { key: 'achievementRating', labelKey: 'colAchievementRating', fmt: 'badge' }
     ], totals: ['kpiScore', 'maxScore']
   },
   activityPerf: {
@@ -5653,7 +5663,11 @@ function renderReportSummaryCards(s) {
   el.style.marginBottom = '14px';
   el.innerHTML = fieldDefs
     .filter(([key]) => s[key] !== undefined)
-    .map(([key, labelKey, fmt]) => card(labelKey, repFmt(s[key], fmt)))
+    .map(([key, labelKey, fmt]) => {
+      const deptLabels = { monthlyTarget: 'colDeptTarget', approvedActual: 'colDeptActual', balance: 'colDeptBalance', achievementPct: 'colDeptAchievementPct' };
+      const useKey = (currentReportId === 'staffPerf' && deptLabels[key]) ? deptLabels[key] : labelKey;
+      return card(useKey, repFmt(s[key], fmt));
+    })
     .join('');
 }
 
