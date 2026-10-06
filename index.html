@@ -179,6 +179,7 @@ tr:hover td{background:#FFFBF3;}
 .badge.Good{background:#FCEBC9; color:var(--warn);}
 .badge.Satisfactory{background:#FCEBC9; color:var(--warn);}
 .badge.NeedsImprovement{background:#F5DAD5; color:var(--danger);}
+.badge.Unsatisfactory{background:#F5DAD5; color:var(--danger); font-weight:700;}
 .badge.Poor{background:#F5DAD5; color:var(--danger);}
 .badge.Issued{background:#FCEBC9; color:var(--warn);}
 .badge.Replied{background:#DCE7F5; color:#2f6fed;}
@@ -196,6 +197,23 @@ tr:hover td{background:#FFFBF3;}
 .badge.VerifyPending{background:#FCEBC9; color:var(--warn);}
 .badge.Verified{background:#E1EBD9; color:var(--ok);}
 .badge.Disputed{background:#F5DAD5; color:var(--danger);}
+/* STAFF REPORT - Rating column: Staff KPI score vs Total (max) KPI score, drawn against the rating bands */
+.rt-cell{min-width:150px;}
+.rt-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;}
+.rt-score{font-weight:700; color:var(--coffee-900); font-size:12.5px; white-space:nowrap;}
+.rt-of{font-weight:500; color:#8a7a68;}
+.rt-pct{font-size:10.5px; color:#8a7a68; margin-left:4px; font-weight:600;}
+.rt-cap{font-size:10px; color:#8a7a68; margin-top:3px; white-space:nowrap;}
+.rt-bar{position:relative; height:7px; border-radius:4px; background:#EEE0CC; overflow:hidden;}
+.rt-bar i{display:block; height:100%; border-radius:4px;}
+.rt-bar b{position:absolute; top:0; bottom:0; width:1px; background:#fff; opacity:.9;}
+.rt-bar b.rt-eq{width:2px; background:var(--coffee-900); opacity:.75;}
+.rt-bar i.rt-Outstanding{background:#3F6B34;}
+.rt-bar i.rt-Excellent{background:#5A7D4A;}
+.rt-bar i.rt-Good{background:#B9A02F;}
+.rt-bar i.rt-Satisfactory{background:#C08A2E;}
+.rt-bar i.rt-NeedsImprovement{background:#B5493A;}
+@media print{ .rt-bar{border:1px solid #bbb;} .rt-bar i{-webkit-print-color-adjust:exact; print-color-adjust:exact;} }
 
 .memo-timeline{list-style:none; margin-top:12px;}
 .memo-timeline li{padding:4px 0 12px 22px; border-left:2px solid var(--coffee-300); position:relative; font-size:12.5px; color:var(--coffee-900);}
@@ -1698,6 +1716,8 @@ const I18N = {
   colActivitiesCount: { en: "Activities Count", ta: "செயல்பாடுகள் எண்ணிக்கை" },
   colActivitiesNames: { en: "Activities (Names)", ta: "செயல்பாடுகள் (பெயர்கள்)" },
   colRating: { en: "Rating", ta: "மதிப்பீடு" },
+  repFairShareLbl: { en: "Fair share (equal split)", ta: "நியாய பங்கு (சம பங்கீடு)" },
+  repOfFairShare: { en: "of fair share", ta: "நியாய பங்கில்" },
   colStaffId: { en: "Staff ID", ta: "பணியாளர் ID" },
   colActualCount: { en: "Actual Count", ta: "நிகழ் எண்ணிக்கை" },
   colTotalActivities: { en: "Total Activities", ta: "மொத்த செயல்பாடுகள்" },
@@ -5252,7 +5272,7 @@ const REPORT_DEFS = {
       { key: 'monthlyTarget', labelKey: 'colParticipatedTarget', fmt: 'num' }, { key: 'approvedActual', labelKey: 'colApprovedActual', fmt: 'num' },
       { key: 'balance', labelKey: 'colBalance', fmt: 'num' }, { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' },
       { key: 'kpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
-      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'badge' }
+      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'scoreRating', scoreKey: 'kpiScore', maxKey: 'maxScore' }
     ], totals: ['kpiScore', 'maxScore']
   },
   activityPerf: {
@@ -5382,7 +5402,7 @@ const REPORT_DEFS = {
       { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' },
       { key: 'section', labelKey: 'section' }, { key: 'designation', labelKey: 'colDesignation' },
       { key: 'totalKpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
-      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'badge' }
+      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'scoreRating', scoreKey: 'totalKpiScore', maxKey: 'maxScore' }
     ], totals: ['totalKpiScore', 'maxScore']
   },
   approvalRegister: {
@@ -5461,13 +5481,64 @@ function repStripTags(s) { return String(s == null ? '' : s).replace(/<[^>]+>/g,
 // that renders the Reports table - 'badge' additionally runs its class
 // name through safeStatusClass() so the raw value can't break out of the
 // class attribute, and the underlying text is still escapeHtml()'d.
-function repFmt(val, fmt) {
+function repFmt(val, fmt, row, col) {
   if (val === null || val === undefined || val === '') return (fmt === 'pct' || fmt === 'num') ? T('repNotSet') : '';
   if (fmt === 'pct') return escapeHtml((Math.round(Number(val) * 100) / 100) + '%');
   if (fmt === 'num') return escapeHtml((Math.round(Number(val) * 100) / 100).toLocaleString());
   if (fmt === 'date') { const d = new Date(val); return isNaN(d) ? '' : escapeHtml(d.toLocaleDateString()); }
   if (fmt === 'badge') return `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
+  if (fmt === 'scoreRating') return repScoreRating(val, row, col);
   return escapeHtml(val);
+}
+
+// STAFF REPORT Rating column (Oct 2026) - FAIR-SHARE (EQUAL SPLIT) RATING, UNCAPPED.
+//   Share %      = staff KPI score / TOTAL KPI score of all staff in this report
+//   Fair share   = 100 / number of staff in the report (equal split)
+//   Fair-share % = Share % / Fair share x 100   (NOT capped - above 100 = above an equal split)
+//   Rating       = REP_FAIR_BANDS below applied to Fair-share %. Edit the cut-offs
+//                  here to match company policy (highest min first).
+// Needs 2+ staff and a positive total; with a single-staff filter it falls back
+// to the server rating badge. Display only - no stored score is changed.
+const REP_FAIR_BANDS = [
+  { min: 130, rating: 'Outstanding' }, { min: 115, rating: 'Excellent' },
+  { min: 100, rating: 'Good' }, { min: 50, rating: 'Satisfactory' },
+  { min: 0, rating: 'Needs Improvement' }
+];
+const REP_FAIR_BAR_MAX = 150; // bar is drawn 0-150% of fair share (100% = equal split)
+function repRatingFromPct_(pct) {
+  const b = REP_FAIR_BANDS.find(x => pct >= x.min);
+  return b ? b.rating : 'Needs Improvement';
+}
+function repFairShareInfo_(row, col) {
+  if (!row || !col || !Array.isArray(lastReportRows) || lastReportRows.length < 2) return null;
+  const earned = Number(row[col.scoreKey]);
+  if (!isFinite(earned)) return null;
+  const total = lastReportRows.reduce((a, r) => a + (Number(r[col.scoreKey]) || 0), 0);
+  if (!(total > 0)) return null;
+  const r2 = n => Math.round(n * 100) / 100;
+  const share = earned / total * 100;
+  const fair = 100 / lastReportRows.length;
+  const idx = Math.max(0, share / fair * 100);
+  return { earned: r2(earned), total: r2(total), share: r2(share), fair: r2(fair), idx: r2(idx), rating: repRatingFromPct_(idx) };
+}
+function repScoreRating(val, row, col) {
+  const fallback = `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
+  const f = repFairShareInfo_(row, col);
+  if (!f) return fallback;
+  const badge = `<span class="badge ${safeStatusClass(f.rating)}">${escapeHtml(f.rating)}</span>`;
+  const ticks = REP_FAIR_BANDS.filter(b => b.min > 0).map(b => `<b class="${b.min === 100 ? 'rt-eq' : ''}" style="left:${b.min / REP_FAIR_BAR_MAX * 100}%"></b>`).join('');
+  const barW = Math.min(100, f.idx / REP_FAIR_BAR_MAX * 100);
+  const tip = `${f.earned} / ${f.total} = ${f.share}%  |  ${T('repFairShareLbl')} ${f.fair}%  |  ${f.idx}%`;
+  return `<div class="rt-cell" title="${escapeHtml(tip)}">
+    <div class="rt-top"><span class="rt-score">${escapeHtml(f.earned)}<span class="rt-of"> / ${escapeHtml(f.total)}</span><span class="rt-pct">${escapeHtml(f.share)}%</span></span>${badge}</div>
+    <div class="rt-bar"><i class="rt-${safeStatusClass(f.rating)}" style="width:${barW}%"></i>${ticks}</div>
+    <div class="rt-cap">${escapeHtml(f.idx)}% ${T('repOfFairShare')} (${escapeHtml(f.fair)}%)</div>
+  </div>`;
+}
+// Plain-text version for CSV export (matches what is shown on screen).
+function repScoreRatingText(val, row, col) {
+  const f = repFairShareInfo_(row, col);
+  return f ? `${f.rating} (${f.share}% share, ${f.idx}% of fair share ${f.fair}%)` : String(val == null ? '' : val);
 }
 
 function buildReportTypeButtons() {
@@ -5621,7 +5692,7 @@ async function runReport() {
   }
 
   tbody.innerHTML = lastReportRows.map(r =>
-    '<tr>' + def.columns.map(c => `<td>${repFmt(r[c.key], c.fmt)}</td>`).join('') + '</tr>'
+    '<tr>' + def.columns.map(c => `<td>${repFmt(r[c.key], c.fmt, r, c)}</td>`).join('') + '</tr>'
   ).join('');
 
   if (def.totals && def.totals.length) {
@@ -5662,7 +5733,7 @@ function exportReportCsv() {
   const headers = lastReportColumns.map(c => T(c.labelKey));
   const csvEsc = (v) => { let s = (v === null || v === undefined) ? '' : String(v); if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s; /* spreadsheet formula-injection guard */ return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [headers.map(csvEsc).join(',')];
-  lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
+  lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(c.fmt === 'scoreRating' ? repScoreRatingText(r[c.key], r, c) : repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -5677,7 +5748,7 @@ function printReport() {
   const w = window.open('', '_blank');
   const title = T(REPORT_DEFS[currentReportId].labelKey);
   const headHtml = lastReportColumns.map(c => `<th>${T(c.labelKey)}</th>`).join('');
-  const bodyHtml = lastReportRows.map(r => '<tr>' + lastReportColumns.map(c => `<td>${repStripTags(repFmt(r[c.key], c.fmt))}</td>`).join('') + '</tr>').join('');
+  const bodyHtml = lastReportRows.map(r => '<tr>' + lastReportColumns.map(c => `<td>${c.fmt === 'scoreRating' ? repFmt(r[c.key], c.fmt, r, c) : repStripTags(repFmt(r[c.key], c.fmt))}</td>`).join('') + '</tr>').join('');
   // Letterhead (Company/Department + Staff/Section scope + Prepared On) -
   // same lastReportMeta populated by updateReportLetterhead() during
   // runReport(), so the printed copy always matches what's on screen.
@@ -5689,6 +5760,9 @@ function printReport() {
     .lhCompany{font-size:16px;font-weight:700;margin-bottom:2px;} .lhDept{font-size:13px;margin-bottom:2px;} .lhMeta{font-size:11px;color:#555;margin-bottom:10px;}
     table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #999;padding:5px 7px;text-align:left;}
     th{background:#eee;}
+    .rt-top{display:flex;justify-content:space-between;gap:6px;margin-bottom:3px;} .rt-score{font-weight:700;} .rt-of,.rt-pct{color:#666;font-weight:500;} .rt-pct{margin-left:4px;font-size:10px;}
+    .rt-cap{font-size:9px;color:#666;margin-top:2px;} .badge{font-size:10px;font-weight:700;} .rt-bar{position:relative;height:7px;background:#e6e6e6;border:1px solid #bbb;overflow:hidden;} .rt-bar i{display:block;height:100%;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .rt-bar b{position:absolute;top:0;bottom:0;width:1px;background:#fff;} .rt-bar b.rt-eq{width:2px;background:#333;}
+    .rt-Outstanding{background:#3F6B34;} .rt-Excellent{background:#5A7D4A;} .rt-Good{background:#B9A02F;} .rt-Satisfactory{background:#C08A2E;} .rt-NeedsImprovement{background:#B5493A;}
   </style></head><body>
     <div class="lhCompany">${escapeHtml(lh.company)}</div>
     <div class="lhDept">${escapeHtml(lh.dept)}</div>
