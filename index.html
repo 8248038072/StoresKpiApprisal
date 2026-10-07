@@ -174,9 +174,9 @@ tr:hover td{background:#FFFBF3;}
 .subtab-bar button.active{background:var(--coffee-700); color:#fff; border-color:var(--coffee-700);}
 .subview{display:none;}
 .subview.active{display:block; animation:fadeIn .2s ease;}
-.badge.Outstanding{background:#E1EBD9; color:var(--ok);}
-.badge.Excellent{background:#E1EBD9; color:var(--ok);}
-.badge.Good{background:#FCEBC9; color:var(--warn);}
+.badge.Outstanding{background:#CFE6C3; color:#2B5A22; font-weight:700;}
+.badge.Excellent{background:#D4EEE8; color:#17695A; font-weight:700;}
+.badge.Good{background:#EEF2C8; color:#6B6A10;}
 .badge.Satisfactory{background:#FCEBC9; color:var(--warn);}
 .badge.NeedsImprovement{background:#F5DAD5; color:var(--danger);}
 .badge.Unsatisfactory{background:#F5DAD5; color:var(--danger); font-weight:700;}
@@ -209,7 +209,7 @@ tr:hover td{background:#FFFBF3;}
 .rt-bar b{position:absolute; top:0; bottom:0; width:1px; background:#fff; opacity:.9;}
 .rt-bar b.rt-eq{width:2px; background:var(--coffee-900); opacity:.75;}
 .rt-bar i.rt-Outstanding{background:#3F6B34;}
-.rt-bar i.rt-Excellent{background:#5A7D4A;}
+.rt-bar i.rt-Excellent{background:#2E8B7A;}
 .rt-bar i.rt-Good{background:#B9A02F;}
 .rt-bar i.rt-Satisfactory{background:#C08A2E;}
 .rt-bar i.rt-NeedsImprovement{background:#B5493A;}
@@ -884,6 +884,9 @@ main.content{
                advisory only, never blocks Save Snapshot or Approve & Lock.
                See getHRReviewPendingList()/lockAppraisalSnapshot() in code.gs. -->
           <div id="hrReviewPendingResult"></div>
+          <!-- Oct 2026: advisory warning for working days with NO attendance entry in the
+               appraisal period. Filled by runFullAppraisal(). Never changes any score. -->
+          <div id="hrAttGapWarning"></div>
         </div>
 
         <div class="subtab-bar">
@@ -1378,6 +1381,8 @@ const I18N = {
   disputeReasonPrompt: { en: "Reason for disputing this attendance record (optional):", ta: "இந்த வருகைப் பதிவை மறுப்பதற்கான காரணம் (விருப்பம்):" },
   attGapTitle: { en: "Unmarked Attendance Check", ta: "பதிவு செய்யாத வருகை சரிபார்ப்பு" },
   attGapSub: { en: "Working days with no attendance entry. Check this before running the monthly appraisal. It does not change any score.", ta: "வருகை பதிவு இல்லாத வேலை நாட்கள். மாதாந்திர மதிப்பீட்டுக்கு முன் இதைச் சரிபார்க்கவும். இது எந்த மதிப்பெண்ணையும் மாற்றாது." },
+  hrAttGapWarnTitle: { en: "Unmarked attendance found.", ta: "பதிவு செய்யப்படாத வருகை உள்ளது." },
+  hrAttGapWarnText: { en: "These working days have no attendance entry, so they are not counted in the Attendance score. Mark them, then run the appraisal again. (Scores are not changed by this warning.)", ta: "இந்த வேலை நாட்களுக்கு வருகை பதிவு இல்லை, அதனால் Attendance மதிப்பெண்ணில் அவை கணக்கிடப்படவில்லை. அவற்றைப் பதிவு செய்த பிறகு மதிப்பீட்டை மீண்டும் இயக்கவும். (இந்த எச்சரிக்கை மதிப்பெண்ணை மாற்றாது.)" },
   attGapCheck: { en: "Check", ta: "சரிபார்" },
   attGapExpected: { en: "Working Days", ta: "வேலை நாட்கள்" },
   attGapMarked: { en: "Marked", ta: "பதிவானவை" },
@@ -1638,6 +1643,8 @@ const I18N = {
   remarksCol: { en: "Remarks(5)", ta: "குறிப்புகள்(5)" },
   hr100Col: { en: "HR(100)", ta: "HR(100)" },
   hrFinalCol: { en: "HR Final", ta: "HR இறுதி" },
+  colStoresRating: { en: "Stores Rating", ta: "ஸ்டோர்ஸ் மதிப்பீடு" },
+  colFairSharePct: { en: "% of Fair Share", ta: "நியாய பங்கில் %" },
   storesPctCol: { en: "Stores %", ta: "ஸ்டோர்ஸ் %" },
   gradeCol: { en: "Grade", ta: "தரம்" },
   workingDays: { en: "Working Days", ta: "பணி நாட்கள்" },
@@ -4394,6 +4401,7 @@ async function runFullAppraisal() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
   try { lastFullAppraisal = await callApi('getFullAppraisal', p); } catch (e) { toast(e.message); return; }
+  showHrAttendanceGapWarning(p.from, p.to); // advisory only, never blocks or changes scores
   document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => `
     <tr>
       <td>${escapeHtml(a.staffName)}</td>
@@ -4408,11 +4416,26 @@ async function runFullAppraisal() {
       <td>${a.bonusMarks ? '+' + a.bonusMarks : '-'}</td>
       <td>${a.memoDeduction ? '-' + a.memoDeduction : '-'}${a.repeatEscalation ? ` <span class="tag" title="Repeat-memo escalation included">(incl. -${a.repeatEscalation} repeat)</span>` : ''}</td>
       <td>${fnum(a.hrFinalScore)}</td>
-      <td>${fnum(a.storesKpiPct)}</td>
+      <td title="${a.perfRating ? escapeHtml(a.perfRating.rating + ' | KPI ' + a.perfRating.kpiScore + ' | share ' + a.perfRating.share + '% | ' + a.perfRating.idx + '% of fair share | raw KPI% ' + a.storesKpiRawPct) : ''}">${fnum(a.storesKpiPct)}${a.perfRating ? ` <span class="badge ${safeStatusClass(a.perfRating.rating)}" style="font-size:10px;">${escapeHtml(a.perfRating.rating)}</span>` : ''}</td>
       <td><strong>${fnum(a.combinedFinalScore)}</strong> <button class="btn btn-outline btn-sm" style="padding:2px 6px" title="View Trend" data-action="openStaffTrend" data-id="${escapeHtml(a.staffId)}">📈</button></td>
       <td>${escapeHtml(a.grade)}</td>
       <td><span class="badge ${safeStatusClass(a.finalRating)}">${escapeHtml(a.finalRating)}</span></td>
     </tr>`).join('') || `<tr><td colspan="19" class="empty">${T('noActiveStaffData')}</td></tr>`;
+}
+
+async function showHrAttendanceGapWarning(from, to) {
+  const box = document.getElementById('hrAttGapWarning');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
+  let d;
+  try { d = await callApi('getAttendanceGapReport', { from, to }); } catch (e) { return; } // advisory: fail silently
+  const bad = (d.staff || []).filter(r => r.unmarkedDays > 0);
+  if (!bad.length) return;
+  const items = bad.map(r => `<li><strong>${escapeHtml(r.staffName)}</strong>: ${r.unmarkedDays} - ${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</li>`).join('');
+  box.innerHTML = `<div style="margin-top:10px;padding:10px 12px;border:1px solid #e0a800;background:#fff8e1;border-radius:8px;font-size:13px;">
+    <strong>⚠️ ${T('hrAttGapWarnTitle')}</strong> ${T('hrAttGapWarnText')}
+    <ul style="margin:6px 0 0 18px;">${items}</ul></div>`;
 }
 
 function exportFullAppraisal() {
@@ -4425,7 +4448,7 @@ function exportFullAppraisal() {
     'Disc.(10)': a.criteria.discipline, 'Policy(10)': a.criteria.policyCompliance,
     'Behav.(10)': a.criteria.behaviour, 'Train(10)': a.criteria.training, 'Remarks(5)': a.criteria.hrRemarks,
     'HR(100)': a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
-    'HR Final': a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct,
+    'HR Final': a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
     'Final Score': a.combinedFinalScore, Grade: a.grade, Rating: a.finalRating
   }));
   exportXlsx(rows, 'HR_Appraisal_Combined_' + document.getElementById('hrPeriod').value + '.xlsx');
@@ -5431,7 +5454,8 @@ const REPORT_DEFS = {
       { key: 'department', labelKey: 'section' }, { key: 'designation', labelKey: 'colDesignation' },
       { key: 'hrScore', labelKey: 'hr100Col', fmt: 'num' }, { key: 'bonusMarks', labelKey: 'bonus', fmt: 'num' },
       { key: 'memoDeduction', labelKey: 'memo', fmt: 'num' }, { key: 'hrFinalScore', labelKey: 'hrFinalCol', fmt: 'num' },
-      { key: 'storesKpiPct', labelKey: 'storesPctCol', fmt: 'pct' }, { key: 'combinedFinalScore', labelKey: 'final', fmt: 'num' },
+      { key: 'storesKpiPct', labelKey: 'storesPctCol', fmt: 'pct' }, { key: 'storesRating', labelKey: 'colStoresRating' },
+      { key: 'storesFairSharePct', labelKey: 'colFairSharePct', fmt: 'pct' }, { key: 'combinedFinalScore', labelKey: 'final', fmt: 'num' },
       { key: 'grade', labelKey: 'gradeCol' }, { key: 'finalRating', labelKey: 'rating', fmt: 'badge' }
     ], totals: ['bonusMarks', 'memoDeduction']
   }
@@ -5500,11 +5524,16 @@ function repFmt(val, fmt, row, col) {
 // Needs 2+ staff and a positive total; with a single-staff filter it falls back
 // to the server rating badge. Display only - no stored score is changed.
 const REP_FAIR_BANDS = [
-  { min: 130, rating: 'Outstanding' }, { min: 115, rating: 'Excellent' },
+  { min: 141, rating: 'Outstanding' }, { min: 121, rating: 'Excellent' },
   { min: 100, rating: 'Good' }, { min: 50, rating: 'Satisfactory' },
   { min: 0, rating: 'Needs Improvement' }
 ];
-const REP_FAIR_BAR_MAX = 150; // bar is drawn 0-150% of fair share (100% = equal split)
+// 60% MINIMUM-ACHIEVEMENT RULE (Oct 2026) - keep identical to HR_APPRAISAL_POLICY.STORES_RATING_MARKS in Code.gs.
+// A staff whose own Overall % (KPI Score / Max Score) is >= REP_MIN_ACHIEVEMENT_PCT is never rated below
+// REP_MIN_ACHIEVEMENT_RATING. Floor only - not an automatic 60 marks; higher bands are untouched.
+const REP_MIN_ACHIEVEMENT_PCT = 60;
+const REP_MIN_ACHIEVEMENT_RATING = 'Satisfactory';
+const REP_FAIR_BAR_MAX = 160; // bar is drawn 0-150% of fair share (100% = equal split)
 function repRatingFromPct_(pct) {
   const b = REP_FAIR_BANDS.find(x => pct >= x.min);
   return b ? b.rating : 'Needs Improvement';
@@ -5518,8 +5547,15 @@ function repFairShareInfo_(row, col) {
   const r2 = n => Math.round(n * 100) / 100;
   const share = earned / total * 100;
   const fair = 100 / lastReportRows.length;
-  const idx = Math.max(0, share / fair * 100);
-  return { earned: r2(earned), total: r2(total), share: r2(share), fair: r2(fair), idx: r2(idx), rating: repRatingFromPct_(idx) };
+  const idx = Math.max(0, Math.round(share / fair * 100 * 10000) / 10000); // same float-safe rounding as the server
+  let rating = repRatingFromPct_(idx), floorApplied = false;
+  const ach = Number(row.overallPct) || 0;
+  const floorBand = REP_FAIR_BANDS.find(b => b.rating === REP_MIN_ACHIEVEMENT_RATING);
+  const curBand = REP_FAIR_BANDS.find(b => b.rating === rating);
+  if (floorBand && REP_MIN_ACHIEVEMENT_PCT > 0 && ach >= REP_MIN_ACHIEVEMENT_PCT && curBand && curBand.min < floorBand.min) {
+    rating = floorBand.rating; floorApplied = true;
+  }
+  return { earned: r2(earned), total: r2(total), share: r2(share), fair: r2(fair), idx: r2(idx), rating, ach: r2(ach), floorApplied };
 }
 function repScoreRating(val, row, col) {
   const fallback = `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
@@ -5528,7 +5564,7 @@ function repScoreRating(val, row, col) {
   const badge = `<span class="badge ${safeStatusClass(f.rating)}">${escapeHtml(f.rating)}</span>`;
   const ticks = REP_FAIR_BANDS.filter(b => b.min > 0).map(b => `<b class="${b.min === 100 ? 'rt-eq' : ''}" style="left:${b.min / REP_FAIR_BAR_MAX * 100}%"></b>`).join('');
   const barW = Math.min(100, f.idx / REP_FAIR_BAR_MAX * 100);
-  const tip = `${f.earned} / ${f.total} = ${f.share}%  |  ${T('repFairShareLbl')} ${f.fair}%  |  ${f.idx}%`;
+  const tip = `${f.earned} / ${f.total} = ${f.share}%  |  ${T('repFairShareLbl')} ${f.fair}%  |  ${f.idx}%` + (f.floorApplied ? `  |  ${REP_MIN_ACHIEVEMENT_PCT}%+ achievement (${f.ach}%): minimum ${REP_MIN_ACHIEVEMENT_RATING}` : '');
   return `<div class="rt-cell" title="${escapeHtml(tip)}">
     <div class="rt-top"><span class="rt-score">${escapeHtml(f.earned)}<span class="rt-of"> / ${escapeHtml(f.total)}</span><span class="rt-pct">${escapeHtml(f.share)}%</span></span>${badge}</div>
     <div class="rt-bar"><i class="rt-${safeStatusClass(f.rating)}" style="width:${barW}%"></i>${ticks}</div>
@@ -5538,7 +5574,7 @@ function repScoreRating(val, row, col) {
 // Plain-text version for CSV export (matches what is shown on screen).
 function repScoreRatingText(val, row, col) {
   const f = repFairShareInfo_(row, col);
-  return f ? `${f.rating} (${f.share}% share, ${f.idx}% of fair share ${f.fair}%)` : String(val == null ? '' : val);
+  return f ? `${f.rating} (${f.share}% share, ${f.idx}% of fair share ${f.fair}%${f.floorApplied ? ', ' + f.ach + '% achievement - minimum ' + REP_MIN_ACHIEVEMENT_RATING : ''})` : String(val == null ? '' : val);
 }
 
 function buildReportTypeButtons() {
@@ -5762,7 +5798,7 @@ function printReport() {
     th{background:#eee;}
     .rt-top{display:flex;justify-content:space-between;gap:6px;margin-bottom:3px;} .rt-score{font-weight:700;} .rt-of,.rt-pct{color:#666;font-weight:500;} .rt-pct{margin-left:4px;font-size:10px;}
     .rt-cap{font-size:9px;color:#666;margin-top:2px;} .badge{font-size:10px;font-weight:700;} .rt-bar{position:relative;height:7px;background:#e6e6e6;border:1px solid #bbb;overflow:hidden;} .rt-bar i{display:block;height:100%;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .rt-bar b{position:absolute;top:0;bottom:0;width:1px;background:#fff;} .rt-bar b.rt-eq{width:2px;background:#333;}
-    .rt-Outstanding{background:#3F6B34;} .rt-Excellent{background:#5A7D4A;} .rt-Good{background:#B9A02F;} .rt-Satisfactory{background:#C08A2E;} .rt-NeedsImprovement{background:#B5493A;}
+    .rt-Outstanding{background:#3F6B34;} .rt-Excellent{background:#2E8B7A;} .rt-Good{background:#B9A02F;} .rt-Satisfactory{background:#C08A2E;} .rt-NeedsImprovement{background:#B5493A;}
   </style></head><body>
     <div class="lhCompany">${escapeHtml(lh.company)}</div>
     <div class="lhDept">${escapeHtml(lh.dept)}</div>
