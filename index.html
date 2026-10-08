@@ -1815,6 +1815,11 @@ const I18N = {
   noSnapshotsYet: { en: "No saved snapshots yet for this staff.", ta: "இந்த ஊழியருக்கு இதுவரை சேமிக்கப்பட்ட ஸ்னாப்ஷாட் இல்லை." },
   snapshotsSaved: { en: "snapshots saved", ta: "ஸ்னாப்ஷாட்கள் சேமிக்கப்பட்டன" },
   targetQtyShort: { en: "approved / target qty", ta: "அங்கீகரிக்கப்பட்டது / இலக்கு அளவு" },
+  dashPerfRating: { en: "Stores Performance (Fair Share)", ta: "கடை செயல்திறன் (நியாய பங்கு)" },
+  dashPerfFloorNote: { en: "achievement - minimum rating", ta: "சாதனை - குறைந்தபட்ச மதிப்பீடு" },
+  hrPendingTitle: { en: "HR Score pending - attendance not verified.", ta: "HR மதிப்பெண் நிலுவையில் - attendance verify ஆகவில்லை." },
+  hrPendingDays: { en: "attendance day(s) not yet Verified by Manager/HR.", ta: "நாட்கள் Manager/HR மூலம் இன்னும் verify ஆகவில்லை." },
+  hrPendingNoRecords: { en: "No attendance record in this period.", ta: "இந்த காலத்தில் attendance பதிவு இல்லை." },
   vsPrevPeriod: { en: "vs previous period", ta: "முந்தைய காலத்தை விட" },
   viewMyTrend: { en: "📈 My HR Appraisal Trend", ta: "📈 எனது HR மதிப்பீட்டு போக்கு" },
   dashDateRangeLabel: { en: "Date Range", ta: "தேதி வரம்பு" },
@@ -2817,11 +2822,21 @@ function renderDashboard(d) {
   const entriesLabel = DASHBOARD_RANGE_MODE !== 'thisMonth' ? T('approvedEntriesRange') : T('approvedEntriesMtd');
   const kpiPctLabel = DASHBOARD_RANGE_MODE !== 'thisMonth' ? T('totalKpiPctRange') : T('totalKpiPctMtd');
 
+  // STORES PERFORMANCE card (Oct 2026): fair-share rating (with the 60% minimum rule) - Staff view only; older cached responses have no field.
+  let perfCardHtml = '';
+  const pr = d.performanceRating;
+  if (pr && pr.rating) {
+    const floorNote = pr.floorApplied ? `<div style="font-size:11.5px;margin-top:2px;opacity:.85">${pr.achievementPct}% ${T('dashPerfFloorNote')} ${escapeHtml(pr.rating)}</div>` : '';
+    perfCardHtml = `<div class="stat-card"><div class="label">${T('dashPerfRating')}</div>
+      <div class="value" style="font-size:20px"><span class="badge ${safeStatusClass(pr.rating)}">${escapeHtml(pr.rating)}</span></div>
+      <div style="font-size:12px;margin-top:4px;opacity:.85">${pr.idx}% ${T('repOfFairShare')} (${pr.fair}%)</div>${floorNote}</div>`;
+  }
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card"><div class="label">${entriesLabel}</div><div class="value">${d.totalEntries}</div></div>
     <div class="stat-card alt"><div class="label">${kpiPctLabel}</div><div class="value">${fnum(d.totalKpiPct)}%</div>${qtyHtml}${trendHtml}</div>
     <div class="stat-card"><div class="label">${T('pendingApprovals')}</div><div class="value">${d.pendingApprovals}</div></div>
     <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${SESSION.role}</div></div>
+    ${perfCardHtml}
   `;
   // Achievement % charts (the old marks charts were removed). A response
   // cached before the backend update may not carry these fields yet, so fall
@@ -4402,7 +4417,11 @@ async function runFullAppraisal() {
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
   try { lastFullAppraisal = await callApi('getFullAppraisal', p); } catch (e) { toast(e.message); return; }
   showHrAttendanceGapWarning(p.from, p.to); // advisory only, never blocks or changes scores
-  document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => `
+  document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => a.hrPending ? `
+    <tr>
+      <td>${escapeHtml(a.staffName)}</td>
+      <td colspan="18" style="color:#8a6d1d;background:#fff8e1;">⏳ <strong>${T('hrPendingTitle')}</strong> ${a.attendanceRecordDays ? a.attendancePendingDays + ' / ' + a.attendanceRecordDays + ' ' + T('hrPendingDays') : T('hrPendingNoRecords')}</td>
+    </tr>` : `
     <tr>
       <td>${escapeHtml(a.staffName)}</td>
       <td>${fnum((a.criteria||{}).attendance)}</td><td>${fnum((a.criteria||{}).leaveManagement)}</td>
@@ -4447,9 +4466,9 @@ function exportFullAppraisal() {
     'Early(7)': a.criteria.earlyLeaving, 'Shift(10)': a.criteria.shiftCompliance,
     'Disc.(10)': a.criteria.discipline, 'Policy(10)': a.criteria.policyCompliance,
     'Behav.(10)': a.criteria.behaviour, 'Train(10)': a.criteria.training, 'Remarks(5)': a.criteria.hrRemarks,
-    'HR(100)': a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
-    'HR Final': a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
-    'Final Score': a.combinedFinalScore, Grade: a.grade, Rating: a.finalRating
+    'HR(100)': a.hrPending ? 'Pending' : a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
+    'HR Final': a.hrPending ? 'Pending' : a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
+    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? 'Attendance not verified' : a.finalRating
   }));
   exportXlsx(rows, 'HR_Appraisal_Combined_' + document.getElementById('hrPeriod').value + '.xlsx');
 }
