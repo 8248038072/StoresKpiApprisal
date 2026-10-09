@@ -1723,7 +1723,7 @@ const I18N = {
   colActivitiesCount: { en: "Activities Count", ta: "செயல்பாடுகள் எண்ணிக்கை" },
   colActivitiesNames: { en: "Activities (Names)", ta: "செயல்பாடுகள் (பெயர்கள்)" },
   colRating: { en: "Rating", ta: "மதிப்பீடு" },
-  repFairShareLbl: { en: "Fair share (equal split)", ta: "நியாய பங்கு (சம பங்கீடு)" },
+  repFairShareLbl: { en: "Fair share (fixed baseline)", ta: "நியாய பங்கு (நிலையான அடிப்படை)" },
   repOfFairShare: { en: "of fair share", ta: "நியாய பங்கில்" },
   colStaffId: { en: "Staff ID", ta: "பணியாளர் ID" },
   colActualCount: { en: "Actual Count", ta: "நிகழ் எண்ணிக்கை" },
@@ -5534,10 +5534,11 @@ function repFmt(val, fmt, row, col) {
   return escapeHtml(val);
 }
 
-// STAFF REPORT Rating column (Oct 2026) - FAIR-SHARE (EQUAL SPLIT) RATING, UNCAPPED.
-//   Share %      = staff KPI score / TOTAL KPI score of all staff in this report
-//   Fair share   = 100 / number of staff in the report (equal split)
-//   Fair-share % = Share % / Fair share x 100   (NOT capped - above 100 = above an equal split)
+// STAFF REPORT Rating column (Oct 2026) - FIXED FAIR-SHARE BASELINE RATING, UNCAPPED.
+//   Share %      = staff KPI score / Max Score (= Overall %)
+//   Fair share   = 100 / number of ACTIVE staff (row.activeStaffCount from the server; e.g. 6 staff = 16.67%,
+//                  i.e. 16.66 marks of a 100 pool) - NOT dependent on what the other staff scored
+//   Fair-share % = Share % / Fair share x 100   (NOT capped - 100 = baseline reached, below 50 = Needs Improvement)
 //   Rating       = REP_FAIR_BANDS below applied to Fair-share %. Edit the cut-offs
 //                  here to match company policy (highest min first).
 // Needs 2+ staff and a positive total; with a single-staff filter it falls back
@@ -5550,7 +5551,7 @@ const REP_FAIR_BANDS = [
 // 60% MINIMUM-ACHIEVEMENT RULE (Oct 2026) - keep identical to HR_APPRAISAL_POLICY.STORES_RATING_MARKS in Code.gs.
 // A staff whose own Overall % (KPI Score / Max Score) is >= REP_MIN_ACHIEVEMENT_PCT is never rated below
 // REP_MIN_ACHIEVEMENT_RATING. Floor only - not an automatic 60 marks; higher bands are untouched.
-const REP_MIN_ACHIEVEMENT_PCT = 60;
+const REP_MIN_ACHIEVEMENT_PCT = 0; // 60% floor RETIRED (Oct 2026) - 0 = off; keep identical to MIN_ACHIEVEMENT_PCT in Code.gs
 const REP_MIN_ACHIEVEMENT_RATING = 'Satisfactory';
 const REP_FAIR_BAR_MAX = 160; // bar is drawn 0-150% of fair share (100% = equal split)
 function repRatingFromPct_(pct) {
@@ -5558,14 +5559,14 @@ function repRatingFromPct_(pct) {
   return b ? b.rating : 'Needs Improvement';
 }
 function repFairShareInfo_(row, col) {
-  if (!row || !col || !Array.isArray(lastReportRows) || lastReportRows.length < 2) return null;
+  if (!row || !col) return null;
   const earned = Number(row[col.scoreKey]);
-  if (!isFinite(earned)) return null;
-  const total = lastReportRows.reduce((a, r) => a + (Number(r[col.scoreKey]) || 0), 0);
-  if (!(total > 0)) return null;
-  const r2 = n => Math.round(n * 100) / 100;
-  const share = earned / total * 100;
-  const fair = 100 / lastReportRows.length;
+  const max = Number(row[col.maxKey]);
+  const n = Number(row.activeStaffCount);
+  if (!isFinite(earned) || !(max > 0) || !(n >= 2)) return null;
+  const r2 = x => Math.round(x * 100) / 100;
+  const share = earned / max * 100;
+  const fair = 100 / n;
   const idx = Math.max(0, Math.round(share / fair * 100 * 10000) / 10000); // same float-safe rounding as the server
   let rating = repRatingFromPct_(idx), floorApplied = false;
   const ach = Number(row.overallPct) || 0;
@@ -5574,7 +5575,7 @@ function repFairShareInfo_(row, col) {
   if (floorBand && REP_MIN_ACHIEVEMENT_PCT > 0 && ach >= REP_MIN_ACHIEVEMENT_PCT && curBand && curBand.min < floorBand.min) {
     rating = floorBand.rating; floorApplied = true;
   }
-  return { earned: r2(earned), total: r2(total), share: r2(share), fair: r2(fair), idx: r2(idx), rating, ach: r2(ach), floorApplied };
+  return { earned: r2(earned), total: r2(max), share: r2(share), fair: r2(fair), fairMarks: r2(max / n), idx: r2(idx), rating, ach: r2(ach), floorApplied };
 }
 function repScoreRating(val, row, col) {
   const fallback = `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
