@@ -1650,6 +1650,8 @@ const I18N = {
   hr100Col: { en: "HR(100)", ta: "HR(100)" },
   hrFinalCol: { en: "HR Final", ta: "HR இறுதி" },
   colStoresRating: { en: "Stores Rating", ta: "ஸ்டோர்ஸ் மதிப்பீடு" },
+  storesCapNote: { en: "Stores cap", ta: "Stores வரம்பு" },
+  storesCapTip: { en: "Final rating limited to one level above the Stores rating. Rating by score", ta: "இறுதி மதிப்பீடு Stores மதிப்பீட்டை விட ஒரு நிலைக்கு மேல் போகாது. மதிப்பெண் அடிப்படையிலான மதிப்பீடு" },
   colFairSharePct: { en: "% of Fair Share", ta: "நியாய பங்கில் %" },
   storesPctCol: { en: "Stores %", ta: "ஸ்டோர்ஸ் %" },
   gradeCol: { en: "Grade", ta: "தரம்" },
@@ -1710,21 +1712,6 @@ const I18N = {
   repStaffAppraisal: { en: "⭐ Staff Appraisal", ta: "⭐ பணியாளர் மதிப்பீடு" },
   repApprovalRegister: { en: "✅ Approval / Working Register", ta: "✅ ஒப்புதல் / பணி பதிவேடு" },
   repHrAppraisalStaffWise: { en: "🎖️ HR Appraisal (Staff-wise)", ta: "🎖️ HR மதிப்பீடு (பணியாளர் வாரியாக)" },
-  // ---- STAFF PERFORMANCE SUMMARY (Management, print-ready; Oct 2026) ----
-  repStaffMgmtSummary: { en: "📋 Staff Performance Summary", ta: "📋 பணியாளர் செயல்திறன் சுருக்கம்" },
-  repPending: { en: "Pending", ta: "நிலுவை" },
-  cardStaffCount: { en: "Staff Count", ta: "பணியாளர் எண்ணிக்கை" },
-  cardAvgStores: { en: "Avg Stores %", ta: "சராசரி ஸ்டோர்ஸ் %" },
-  cardAvgFinal: { en: "Avg Combined Final", ta: "சராசரி இறுதி மதிப்பெண்" },
-  cardHrPending: { en: "HR Score Pending", ta: "HR மதிப்பெண் நிலுவை" },
-  cardTopPerformer: { en: "Top Performer", ta: "சிறந்த செயல்திறன்" },
-  cardHrPeriod: { en: "HR Appraisal Period", ta: "HR மதிப்பீட்டு காலம்" },
-  repHrPeriodNote: { en: "(From-date month only)", ta: "(From தேதியின் மாதம் மட்டும்)" },
-  repFinalRatingDist: { en: "Final Rating count", ta: "இறுதி மதிப்பீடு எண்ணிக்கை" },
-  repSumFormulaNote: { en: "Combined Final = Stores % x 70% + HR Final x 30%. Only Approved entries count; HR Score is shown after attendance is verified.", ta: "இறுதி மதிப்பெண் = ஸ்டோர்ஸ் % x 70% + HR இறுதி x 30%. Approved பதிவுகள் மட்டுமே கணக்கிடப்படும்; attendance verify ஆன பிறகே HR மதிப்பெண் காட்டப்படும்." },
-  signPreparedBy: { en: "Prepared By (Stores Manager)", ta: "தயாரித்தவர் (ஸ்டோர்ஸ் மேனேஜர்)" },
-  signHrReview: { en: "HR Review", ta: "HR மதிப்பாய்வு" },
-  signMgmtApproval: { en: "Management Approval", ta: "நிர்வாக ஒப்புதல்" },
   colMonthlyTarget: { en: "Monthly Target", ta: "மாதாந்திர இலக்கு" },
   // Staff Performance report ONLY (Sep 2026): this report's "monthlyTarget"
   // field is each staff's own participated/Team-Split share of target
@@ -4475,7 +4462,7 @@ async function runFullAppraisal() {
       <td title="${a.perfRating ? escapeHtml(a.perfRating.rating + ' | KPI ' + a.perfRating.kpiScore + ' | share ' + a.perfRating.share + '% | ' + a.perfRating.idx + '% of fair share | raw KPI% ' + a.storesKpiRawPct) : ''}">${fnum(a.storesKpiPct)}${a.perfRating ? ` <span class="badge ${safeStatusClass(a.perfRating.rating)}" style="font-size:10px;">${escapeHtml(a.perfRating.rating)}</span>` : ''}</td>
       <td><strong>${fnum(a.combinedFinalScore)}</strong> <button class="btn btn-outline btn-sm" style="padding:2px 6px" title="View Trend" data-action="openStaffTrend" data-id="${escapeHtml(a.staffId)}">📈</button></td>
       <td>${escapeHtml(a.grade)}</td>
-      <td><span class="badge ${safeStatusClass(a.finalRating)}">${escapeHtml(a.finalRating)}</span></td>
+      <td><span class="badge ${safeStatusClass(a.finalRating)}">${escapeHtml(a.finalRating)}</span>${a.finalRatingCapped ? ` <span class="tag" title="${escapeHtml(T('storesCapTip'))}: ${escapeHtml(a.finalRatingByScore)}">${escapeHtml(T('storesCapNote'))}</span>` : ''}</td>
     </tr>`).join('') || `<tr><td colspan="19" class="empty">${T('noActiveStaffData')}</td></tr>`;
 }
 
@@ -4505,7 +4492,7 @@ function exportFullAppraisal() {
     'Behav.(10)': a.criteria.behaviour, 'Train(10)': a.criteria.training, 'Remarks(5)': a.criteria.hrRemarks,
     'HR(100)': a.hrPending ? 'Pending' : a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
     'HR Final': a.hrPending ? 'Pending' : a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
-    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? 'Attendance not verified' : a.finalRating
+    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? 'Attendance not verified' : a.finalRating, 'Rating Note': a.finalRatingCapped ? ('Stores cap (rating by score: ' + a.finalRatingByScore + ')') : ''
   }));
   exportXlsx(rows, 'HR_Appraisal_Combined_' + document.getElementById('hrPeriod').value + '.xlsx');
 }
@@ -5354,28 +5341,6 @@ const REPORT_DEFS = {
       { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'scoreRating', scoreKey: 'kpiScore', maxKey: 'maxScore' }
     ], totals: ['kpiScore', 'maxScore']
   },
-  // STAFF PERFORMANCE SUMMARY - MANAGEMENT / PRINT-READY (Oct 2026, frontend-only):
-  // one ranked row per staff, merged from two EXISTING server actions so no
-  // formula is duplicated here: getStaffPerformanceReport (Stores KPI Score/Max,
-  // dept Target/Actual/Balance/Ach %) + getFullAppraisal (Stores %, Fair-share
-  // Index, Stores Rating, HR Final, Combined Final, Grade, Final Rating). Rank is
-  // by Combined Final (ties share a rank); staff whose HR score is still pending
-  // (attendance not fully verified) are listed after the ranked ones with no rank.
-  staffMgmtSummary: {
-    action: 'getStaffPerformanceReport', labelKey: 'repStaffMgmtSummary', filters: ['date', 'section', 'staff'],
-    customFetch: fetchStaffMgmtSummary, isSummaryPlusRows: true,
-    summaryRenderer: renderStaffMgmtSummaryCards, printTopHtml: staffMgmtPrintTop, printBottomHtml: staffMgmtPrintBottom, landscape: true,
-    columns: [
-      { key: 'rank', labelKey: 'colRank' }, { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' },
-      { key: 'designation', labelKey: 'colDesignation' },
-      { key: 'kpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
-      { key: 'storesPct', labelKey: 'storesPctCol', fmt: 'pct' }, { key: 'fairSharePct', labelKey: 'colFairSharePct', fmt: 'pct' },
-      { key: 'storesRating', labelKey: 'colStoresRating', fmt: 'badge' },
-      { key: 'hrFinal', labelKey: 'hrFinalCol', fmt: 'numText' }, { key: 'combined', labelKey: 'final', fmt: 'numText' },
-      { key: 'grade', labelKey: 'gradeCol' }, { key: 'finalRating', labelKey: 'rating', fmt: 'badge' },
-      { key: 'remarks', labelKey: 'remarks' }
-    ], totals: []
-  },
   activityPerf: {
     action: 'getActivityPerformanceReport', labelKey: 'repActivityPerf', filters: ['date', 'section', 'staff', 'activity'],
     columns: [
@@ -5585,7 +5550,6 @@ function repStripTags(s) { return String(s == null ? '' : s).replace(/<[^>]+>/g,
 // class attribute, and the underlying text is still escapeHtml()'d.
 function repFmt(val, fmt, row, col) {
   if (val === null || val === undefined || val === '') return (fmt === 'pct' || fmt === 'num') ? T('repNotSet') : '';
-  if (fmt === 'numText') return (val !== '' && isFinite(Number(val))) ? escapeHtml((Math.round(Number(val) * 100) / 100).toLocaleString()) : escapeHtml(val);
   if (fmt === 'pct') return escapeHtml((Math.round(Number(val) * 100) / 100) + '%');
   if (fmt === 'num') return escapeHtml((Math.round(Number(val) * 100) / 100).toLocaleString());
   if (fmt === 'date') { const d = new Date(val); return isNaN(d) ? '' : escapeHtml(d.toLocaleDateString()); }
@@ -5613,7 +5577,7 @@ const REP_FAIR_BANDS = [
 // 60% MINIMUM-ACHIEVEMENT RULE (Oct 2026) - keep identical to HR_APPRAISAL_POLICY.STORES_RATING_MARKS in Code.gs.
 // A staff whose own Overall % (KPI Score / Max Score) is >= REP_MIN_ACHIEVEMENT_PCT is never rated below
 // REP_MIN_ACHIEVEMENT_RATING. Floor only - not an automatic 60 marks; higher bands are untouched.
-const REP_FAIR_SHARE_MODE = 'FIXED'; // or 'EQUAL_SPLIT' (keep identical to FAIR_SHARE_MODE in Code.gs)
+const REP_FAIR_SHARE_MODE = 'EQUAL_SPLIT'; // Oct 2026 (was 'FIXED'); or 'FIXED' (keep identical to FAIR_SHARE_MODE in Code.gs)
 const REP_MIN_ACHIEVEMENT_PCT = 0; // 60% floor RETIRED (Oct 2026) - 0 = off; keep identical to MIN_ACHIEVEMENT_PCT in Code.gs
 const REP_MIN_ACHIEVEMENT_RATING = 'Satisfactory';
 const REP_FAIR_BAR_MAX = 160; // visual maximum only: bar is drawn 0-160% of fair share; the Index itself is never capped
@@ -5680,7 +5644,6 @@ function selectReportType(id) {
   document.querySelector('#reportTable thead tr').innerHTML = '';
   document.querySelector('#reportTable tbody').innerHTML = '';
   document.getElementById('repSummaryCards').style.display = 'none';
-  lastReportSummary = null;
   document.getElementById('repResultsTitle').textContent = T(REPORT_DEFS[id].labelKey);
   document.getElementById('repLetterhead').style.display = 'none';
 }
@@ -5712,123 +5675,6 @@ function loadReportsView() {
   buildReportTypeButtons();
   populateReportFilterDropdowns();
   applyReportFilterVisibility();
-}
-
-let lastReportSummary = null;
-
-async function fetchStaffMgmtSummary(params) {
-  const hrPeriod = defaultPeriodLabel(new Date(params.from));
-  const hrParams = { from: params.from, to: params.to, periodLabel: hrPeriod };
-  if (params.staffId) hrParams.staffId = params.staffId;
-  const [perf, full] = await Promise.all([
-    callApi('getStaffPerformanceReport', params),
-    callApi('getFullAppraisal', hrParams)
-  ]);
-  const fullById = {};
-  (Array.isArray(full) ? full : []).forEach(f => { fullById[f.staffId] = f; });
-  const r2 = x => Math.round(x * 100) / 100;
-  const numOrNull = v => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : Number(v);
-  const rows = ((perf && perf.rows) || []).map(p => {
-    const f = fullById[p.staffId] || null;
-    const pending = !f || !!f.hrPending;
-    const remarks = [];
-    if (pending) remarks.push(T('hrPendingTitle'));
-    if (f && Number(f.bonusMarks) > 0) remarks.push(T('bonus') + ' +' + r2(Number(f.bonusMarks)));
-    if (f && Number(f.memoDeduction) > 0) remarks.push(T('memo') + ' -' + r2(Number(f.memoDeduction)));
-    return {
-      rank: '-', staffId: p.staffId, staffName: p.staffName, designation: p.designation,
-      kpiScore: p.kpiScore, maxScore: p.maxScore,
-      storesPct: f ? numOrNull(f.storesKpiPct) : null,
-      fairSharePct: f ? numOrNull(f.storesFairSharePct) : null,
-      storesRating: f ? (f.storesRating || '') : (p.rating || ''),
-      hrFinal: pending ? T('repPending') : f.hrFinalScore,
-      combined: pending ? T('repPending') : f.combinedFinalScore,
-      grade: pending ? '' : (f.grade || ''),
-      finalRating: pending ? '' : (f.finalRating || ''),
-      remarks: remarks.join('; '),
-      _pending: pending
-    };
-  });
-  const ranked = rows.filter(r => !r._pending && numOrNull(r.combined) !== null)
-    .sort((a, b) => Number(b.combined) - Number(a.combined) || String(a.staffName).localeCompare(String(b.staffName)));
-  let prevScore = null, prevRank = 0;
-  ranked.forEach((r, i) => {
-    if (Number(r.combined) !== prevScore) { prevRank = i + 1; prevScore = Number(r.combined); }
-    r.rank = prevRank;
-  });
-  const rankedSet = new Set(ranked);
-  const unranked = rows.filter(r => !rankedSet.has(r))
-    .sort((a, b) => (numOrNull(b.storesPct) || 0) - (numOrNull(a.storesPct) || 0) || String(a.staffName).localeCompare(String(b.staffName)));
-  const outRows = ranked.concat(unranked);
-
-  const storesVals = outRows.map(r => numOrNull(r.storesPct)).filter(v => v !== null);
-  const avg = arr => arr.length ? r2(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
-  const ratingCounts = {};
-  ranked.forEach(r => { if (r.finalRating) ratingCounts[r.finalRating] = (ratingCounts[r.finalRating] || 0) + 1; });
-  const order = REP_FAIR_BANDS.map(b => b.rating);
-  const distribution = Object.keys(ratingCounts)
-    .sort((a, b) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b)))
-    .map(k => ({ rating: k, count: ratingCounts[k] }));
-  const top = ranked.filter(r => r.rank === 1);
-  const sameMonth = defaultPeriodLabel(new Date(params.from)) === defaultPeriodLabel(new Date(params.to));
-  const base = (perf && perf.summary) || {};
-  return {
-    rows: outRows,
-    summary: {
-      staffCount: outRows.length, monthlyTarget: base.monthlyTarget, approvedActual: base.approvedActual,
-      balance: base.balance, achievementPct: base.achievementPct,
-      avgStoresPct: avg(storesVals), avgCombined: avg(ranked.map(r => Number(r.combined))),
-      hrPendingCount: unranked.length,
-      topPerformer: top.length ? top.map(r => r.staffName).join(' / ') + ' (' + r2(Number(top[0].combined)) + ')' : '',
-      hrPeriod: hrPeriod + (sameMonth ? '' : ' ' + T('repHrPeriodNote')),
-      distribution: distribution
-    }
-  };
-}
-
-function renderStaffMgmtSummaryCards(s) {
-  lastReportSummary = s;
-  const el = document.getElementById('repSummaryCards');
-  const card = (label, val) => `<div style="background:var(--cream-100);border-radius:10px;padding:10px 12px;"><div style="font-size:11px;color:var(--coffee-500)">${escapeHtml(label)}</div><div style="font-size:17px;font-weight:700;color:var(--coffee-900)">${val}</div></div>`;
-  const nv = v => (v === null || v === undefined || v === '') ? T('repNotSet') : v;
-  el.style.display = 'grid';
-  el.style.gridTemplateColumns = 'repeat(auto-fit,minmax(150px,1fr))';
-  el.style.gap = '10px';
-  el.style.marginBottom = '14px';
-  const dist = (s.distribution || []).map(d => `<span class="badge ${safeStatusClass(d.rating)}" style="margin-right:6px;">${escapeHtml(d.rating)}: ${escapeHtml(d.count)}</span>`).join('') || escapeHtml(T('repNotSet'));
-  el.innerHTML =
-    card(T('cardStaffCount'), escapeHtml(s.staffCount)) +
-    card(T('colMonthlyTarget'), repFmt(s.monthlyTarget, 'num')) +
-    card(T('colApprovedActual'), repFmt(s.approvedActual, 'num')) +
-    card(T('colBalance'), repFmt(s.balance, 'num')) +
-    card(T('colAchievementPct'), repFmt(s.achievementPct, 'pct')) +
-    card(T('cardAvgStores'), repFmt(s.avgStoresPct, 'pct')) +
-    card(T('cardAvgFinal'), repFmt(s.avgCombined, 'num')) +
-    card(T('cardHrPending'), escapeHtml(s.hrPendingCount)) +
-    card(T('cardTopPerformer'), escapeHtml(nv(s.topPerformer))) +
-    card(T('cardHrPeriod'), escapeHtml(s.hrPeriod)) +
-    `<div style="grid-column:1/-1;font-size:12.5px;color:var(--coffee-700)"><strong>${escapeHtml(T('repFinalRatingDist'))}:</strong> ${dist}</div>` +
-    `<div style="grid-column:1/-1;font-size:11.5px;color:var(--coffee-500)">${escapeHtml(T('repSumFormulaNote'))}</div>`;
-}
-
-// Print hooks for the Staff Performance Summary (see printReport()).
-function staffMgmtPrintTop(s) {
-  if (!s) return '';
-  const nv = v => (v === null || v === undefined || v === '') ? T('repNotSet') : v;
-  const cell = (label, val) => `<td><div class="sl">${escapeHtml(label)}</div><div class="sv">${escapeHtml(val)}</div></td>`;
-  const dist = (s.distribution || []).map(d => `${d.rating}: ${d.count}`).join('  |  ') || T('repNotSet');
-  return `<table class="sumbox"><tr>` +
-    cell(T('cardStaffCount'), s.staffCount) + cell(T('colMonthlyTarget'), repStripTags(repFmt(s.monthlyTarget, 'num'))) +
-    cell(T('colApprovedActual'), repStripTags(repFmt(s.approvedActual, 'num'))) + cell(T('colBalance'), repStripTags(repFmt(s.balance, 'num'))) +
-    cell(T('colAchievementPct'), repStripTags(repFmt(s.achievementPct, 'pct'))) + `</tr><tr>` +
-    cell(T('cardAvgStores'), repStripTags(repFmt(s.avgStoresPct, 'pct'))) + cell(T('cardAvgFinal'), repStripTags(repFmt(s.avgCombined, 'num'))) +
-    cell(T('cardHrPending'), s.hrPendingCount) + cell(T('cardTopPerformer'), nv(s.topPerformer)) + cell(T('cardHrPeriod'), s.hrPeriod) +
-    `</tr></table><div class="note"><strong>${escapeHtml(T('repFinalRatingDist'))}:</strong> ${escapeHtml(dist)}</div>`;
-}
-function staffMgmtPrintBottom() {
-  const sig = k => `<td><div class="sigline"></div>${escapeHtml(T(k))}</td>`;
-  return `<div class="note" style="margin-top:8px;">${escapeHtml(T('repSumFormulaNote'))}</div>` +
-    `<table class="sigs"><tr>${sig('signPreparedBy')}${sig('signHrReview')}${sig('signMgmtApproval')}</tr></table>`;
 }
 
 async function fetchStaffContribution(params) {
@@ -5925,7 +5771,7 @@ async function runReport() {
   updateReportLetterhead(def);
 
   let rows = data;
-  if (def.isSummaryPlusRows) { (def.summaryRenderer || renderReportSummaryCards)(data.summary); rows = data.rows; }
+  if (def.isSummaryPlusRows) { renderReportSummaryCards(data.summary); rows = data.rows; }
 
   lastReportRows = rows || [];
   lastReportColumns = def.columns;
@@ -5998,14 +5844,8 @@ function printReport() {
   // runReport(), so the printed copy always matches what's on screen.
   // Falls back to a fresh company/department-only line in the unlikely
   // case Print is somehow reached before that ran.
-  const rdef = REPORT_DEFS[currentReportId];
-  const topHtml = rdef.printTopHtml ? rdef.printTopHtml(lastReportSummary) : '';
-  const bottomHtml = rdef.printBottomHtml ? rdef.printBottomHtml() : '';
   const lh = lastReportMeta || { company: T('lhCompanyName'), dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`, meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
   w.document.write(`<html><head><title>${title}</title><style>
-    ${rdef.landscape ? '@page{size:A4 landscape;margin:10mm;}' : ''}
-    .sumbox{margin:6px 0;} .sumbox td{width:20%;vertical-align:top;} .sl{font-size:10px;color:#555;} .sv{font-size:13px;font-weight:700;} .note{font-size:10.5px;color:#444;margin:4px 0;}
-    .sigs{margin-top:34px;border:none;} .sigs td{border:none;text-align:center;width:33%;padding-top:0;font-size:11px;} .sigline{border-top:1px solid #333;margin:0 24px 4px;}
     body{font-family:Arial,sans-serif;padding:20px;} h2{margin-bottom:4px;}
     .lhCompany{font-size:16px;font-weight:700;margin-bottom:2px;} .lhDept{font-size:13px;margin-bottom:2px;} .lhMeta{font-size:11px;color:#555;margin-bottom:10px;}
     table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #999;padding:5px 7px;text-align:left;}
@@ -6019,9 +5859,7 @@ function printReport() {
     <h2>${title}</h2>
     <p>${document.getElementById('repFrom').value} to ${document.getElementById('repTo').value}</p>
     <div class="lhMeta">${escapeHtml(lh.meta)}</div>
-    ${topHtml}
     <table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>
-    ${bottomHtml}
   </body></html>`);
   w.document.close();
   w.print();
