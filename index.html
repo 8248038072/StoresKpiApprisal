@@ -174,11 +174,14 @@ tr:hover td{background:#FFFBF3;}
 .subtab-bar button.active{background:var(--coffee-700); color:#fff; border-color:var(--coffee-700);}
 .subview{display:none;}
 .subview.active{display:block; animation:fadeIn .2s ease;}
+.badge.Extraordinary{background:#E3D6F5; color:#4B2A85; font-weight:700;}
 .badge.Outstanding{background:#CFE6C3; color:#2B5A22; font-weight:700;}
 .badge.Excellent{background:#D4EEE8; color:#17695A; font-weight:700;}
+.badge.VeryGood{background:#E2EFC9; color:#456B12; font-weight:700;}
 .badge.Good{background:#EEF2C8; color:#6B6A10;}
 .badge.Satisfactory{background:#FCEBC9; color:var(--warn);}
 .badge.NeedsImprovement{background:#F5DAD5; color:var(--danger);}
+.badge.HRReview{background:#EBC2BC; color:#7A1F1F; font-weight:700;}
 .badge.Unsatisfactory{background:#F5DAD5; color:var(--danger); font-weight:700;}
 .badge.Poor{background:#F5DAD5; color:var(--danger);}
 .badge.Issued{background:#FCEBC9; color:var(--warn);}
@@ -208,11 +211,14 @@ tr:hover td{background:#FFFBF3;}
 .rt-bar i{display:block; height:100%; border-radius:4px;}
 .rt-bar b{position:absolute; top:0; bottom:0; width:1px; background:#fff; opacity:.9;}
 .rt-bar b.rt-eq{width:2px; background:var(--coffee-900); opacity:.75;}
+.rt-bar i.rt-Extraordinary{background:#6A3FA0;}
 .rt-bar i.rt-Outstanding{background:#3F6B34;}
 .rt-bar i.rt-Excellent{background:#2E8B7A;}
+.rt-bar i.rt-VeryGood{background:#7FA33A;}
 .rt-bar i.rt-Good{background:#B9A02F;}
 .rt-bar i.rt-Satisfactory{background:#C08A2E;}
 .rt-bar i.rt-NeedsImprovement{background:#B5493A;}
+.rt-bar i.rt-HRReview{background:#7A1F1F;}
 @media print{ .rt-bar{border:1px solid #bbb;} .rt-bar i{-webkit-print-color-adjust:exact; print-color-adjust:exact;} }
 
 .memo-timeline{list-style:none; margin-top:12px;}
@@ -558,7 +564,7 @@ main.content{
 
         <div class="grid grid-4" id="dashStats"></div>
         <div class="grid grid-2" id="dashPctCharts">
-          <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiPctByStaff">Achievement % by Staff</h3><canvas id="chartStaffPct"></canvas></div>
+          <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiPctByStaff">Achievement % by Staff (Fair-share)</h3><canvas id="chartStaffPct"></canvas></div>
           <div class="card"><h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="kpiPctByActivity">Achievement % by Activity</h3><canvas id="chartActivityPct"></canvas></div>
         </div>
       </section>
@@ -1311,7 +1317,7 @@ const I18N = {
   teamTag: { en: "Together &middot; Focused &middot; Committed &middot; Successful", ta: "ஒன்றாக &middot; கவனத்துடன் &middot; அர்ப்பணிப்புடன் &middot; வெற்றியுடன்" },
   kpiByStaff: { en: "KPI Score by Staff", ta: "பணியாளர் வாரியான KPI மதிப்பெண்" },
   kpiByActivity: { en: "KPI Score by Activity", ta: "செயல்பாடு வாரியான KPI மதிப்பெண்" },
-  kpiPctByStaff: { en: "Achievement % by Staff", ta: "பணியாளர் வாரியான இலக்கு சாதனை %" },
+  kpiPctByStaff: { en: "Achievement % by Staff (Fair-share)", ta: "பணியாளர் வாரியான சாதனை % (Fair-share)" },
   kpiPctByActivity: { en: "Achievement % by Activity", ta: "செயல்பாடு வாரியான இலக்கு சாதனை %" },
   regTitle: { en: "Working Register", ta: "பணி பதிவேடு" },
   regSub: { en: "Pick the Date and Activity, then tick the workflows you performed. Team workflows can be entered multiple times on the same date for separate jobs. Monthly Target, Completed and Balance are shown live.", ta: "தேதி மற்றும் செயல்பாட்டை ஒருமுறை தேர்ந்தெடுத்து, நீங்கள் செய்த ஒவ்வொரு பணிப்பாய்வையும் தேர்வு செய்யவும். மாதாந்திர இலக்கு, முடிக்கப்பட்டது மற்றும் மீதமுள்ள இலக்கு நேரடியாக காட்டப்படும்." },
@@ -1644,6 +1650,8 @@ const I18N = {
   hr100Col: { en: "HR(100)", ta: "HR(100)" },
   hrFinalCol: { en: "HR Final", ta: "HR இறுதி" },
   colStoresRating: { en: "Stores Rating", ta: "ஸ்டோர்ஸ் மதிப்பீடு" },
+  storesCapNote: { en: "Stores cap", ta: "Stores வரம்பு" },
+  storesCapTip: { en: "Final rating limited to one level above the Stores rating. Rating by score", ta: "இறுதி மதிப்பீடு Stores மதிப்பீட்டை விட ஒரு நிலைக்கு மேல் போகாது. மதிப்பெண் அடிப்படையிலான மதிப்பீடு" },
   colFairSharePct: { en: "% of Fair Share", ta: "நியாய பங்கில் %" },
   storesPctCol: { en: "Stores %", ta: "ஸ்டோர்ஸ் %" },
   gradeCol: { en: "Grade", ta: "தரம்" },
@@ -1723,7 +1731,7 @@ const I18N = {
   colActivitiesCount: { en: "Activities Count", ta: "செயல்பாடுகள் எண்ணிக்கை" },
   colActivitiesNames: { en: "Activities (Names)", ta: "செயல்பாடுகள் (பெயர்கள்)" },
   colRating: { en: "Rating", ta: "மதிப்பீடு" },
-  repFairShareLbl: { en: "Fair share (equal split)", ta: "நியாய பங்கு (சம பங்கீடு)" },
+  repFairShareLbl: { en: "Fair share (fixed baseline)", ta: "நியாய பங்கு (நிலையான அடிப்படை)" },
   repOfFairShare: { en: "of fair share", ta: "நியாய பங்கில்" },
   colStaffId: { en: "Staff ID", ta: "பணியாளர் ID" },
   colActualCount: { en: "Actual Count", ta: "நிகழ் எண்ணிக்கை" },
@@ -2841,7 +2849,7 @@ function renderDashboard(d) {
   // Achievement % charts (the old marks charts were removed). A response
   // cached before the backend update may not carry these fields yet, so fall
   // back to empty objects instead of failing.
-  drawPctBarChart('chartStaffPct', d.staffPct || {}, null);
+  drawPctBarChart('chartStaffPct', d.staffPct || {}, null, { ratings: d.staffRating || null, idx: d.staffIdx || null, info: d.staffDetail || null });
   drawPctBarChart('chartActivityPct', d.activityPct || {}, d.activityPctDetail || {});
 }
 
@@ -2894,16 +2902,24 @@ function drawBarChart(canvasId, dataObj, color) {
 // Achievement % bar chart: fixed 0-100 axis, % printed on each bar, bar colour
 // by band (below 60 red, 60-89 coffee, 90+ green). `detail` (optional) maps a
 // label to [{name, unit, target, actual, pct}] and is shown in the tooltip.
-function drawPctBarChart(canvasId, dataObj, detail) {
-  ensureChartJs().then(() => _drawPctBarChartNow(canvasId, dataObj, detail)).catch(e => console.warn(e.message));
+function drawPctBarChart(canvasId, dataObj, detail, fair) {
+  ensureChartJs().then(() => _drawPctBarChartNow(canvasId, dataObj, detail, fair)).catch(e => console.warn(e.message));
 }
-function _drawPctBarChartNow(canvasId, dataObj, detail) {
+// Rating-band bar colours (same colours as the .rt-* rating chips). Used by the fair-share staff chart.
+const PCT_RATING_COLORS = { 'Extraordinary': '#6A3FA0', 'Outstanding': '#3F6B34', 'Excellent': '#2E8B7A', 'Very Good': '#7FA33A', 'Good': '#B9A02F', 'Satisfactory': '#C08A2E', 'Needs Improvement': '#B5493A', 'HR Review': '#7A1F1F' };
+function _drawPctBarChartNow(canvasId, dataObj, detail, fair) {
   const labels = Object.keys(dataObj || {});
   const values = labels.map(k => Number(dataObj[k]) || 0);
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
   if (chartRefs[canvasId]) chartRefs[canvasId].destroy();
-  const colors = values.map(v => v >= 90 ? '#2e7d32' : (v >= 60 ? '#9C6B45' : '#c62828'));
+  // Fair-share staff chart (fair = {ratings, idx, info}): colour by RATING band of the real (uncapped) index;
+  // other charts keep the old 90 / 60 colour rule.
+  const colors = values.map((v, i) => {
+    const rt = fair && fair.ratings && fair.ratings[labels[i]];
+    if (rt && PCT_RATING_COLORS[rt]) return PCT_RATING_COLORS[rt];
+    return v >= 90 ? '#2e7d32' : (v >= 60 ? '#9C6B45' : '#c62828');
+  });
   const valueLabels = {
     id: 'pctValueLabels',
     afterDatasetsDraw(chart) {
@@ -2913,7 +2929,8 @@ function _drawPctBarChartNow(canvasId, dataObj, detail) {
       c.textAlign = 'center';
       c.fillStyle = '#3e2a1c';
       chart.getDatasetMeta(0).data.forEach((bar, i) => {
-        c.fillText(fnum(values[i]) + '%', bar.x, bar.y - 4);
+        const _real = fair && fair.idx && fair.idx[labels[i]];
+        c.fillText(fnum(values[i]) + '%' + (_real > 100 ? ' \u25B2' : ''), bar.x, bar.y - 4);
       });
       c.restore();
     }
@@ -2929,6 +2946,13 @@ function _drawPctBarChartNow(canvasId, dataObj, detail) {
           callbacks: {
             label: item => fnum(item.parsed.y) + '%',
             afterBody: items => {
+              if (fair && fair.idx && fair.idx[items[0].label] !== undefined) {
+                const nm = items[0].label, inf = (fair.info && fair.info[nm]) || {};
+                const out = ['Fair-share index: ' + fnum(fair.idx[nm]) + '%' + (fair.idx[nm] > 100 ? ' (chart capped at 100%)' : '')];
+                if (inf.kpiScore !== undefined) out.push('KPI score ' + fnum(inf.kpiScore) + ' / fair share ' + fnum(inf.fairMarks));
+                if (fair.ratings && fair.ratings[nm]) out.push('Rating: ' + fair.ratings[nm]);
+                return out;
+              }
               const rows = detail && detail[items[0].label];
               if (!rows || !rows.length) return [];
               return rows.map(r => r.name + ': ' + fnum(r.actual) + ' / ' + fnum(r.target) + ' ' + (r.unit || '') + ' (' + fnum(r.pct) + '%)');
@@ -4166,7 +4190,7 @@ async function loadAppraisal() {
     </tr>`).join('') || `<tr><td colspan="5" class="empty">${T('noApprovedRange')}</td></tr>`;
 }
 function ratingBadgeClass(r) {
-  if (r === 'Outstanding' || r === 'Excellent') return 'Approved';
+  if (r === 'Extraordinary' || r === 'Outstanding' || r === 'Excellent' || r === 'Very Good') return 'Approved';
   if (r === 'Good' || r === 'Satisfactory') return 'Submitted';
   return 'Rejected';
 }
@@ -4435,10 +4459,10 @@ async function runFullAppraisal() {
       <td>${a.bonusMarks ? '+' + a.bonusMarks : '-'}</td>
       <td>${a.memoDeduction ? '-' + a.memoDeduction : '-'}${a.repeatEscalation ? ` <span class="tag" title="Repeat-memo escalation included">(incl. -${a.repeatEscalation} repeat)</span>` : ''}</td>
       <td>${fnum(a.hrFinalScore)}</td>
-      <td title="${a.perfRating ? escapeHtml(a.perfRating.rating + ' | KPI ' + a.perfRating.kpiScore + ' | share ' + a.perfRating.share + '% | ' + a.perfRating.idx + '% of fair share | raw KPI% ' + a.storesKpiRawPct + (a.perfRating.lowParticipation ? ' | LOW PARTICIPATION: Stores marks set to ' + a.perfRating.marks + ' (Manager review)' : '') + (a.perfRating.participationExempt ? ' | Approved leave ' + a.perfRating.approvedLeaveDays + ' day(s): low-participation cut not applied' : '')) : ''}">${fnum(a.storesKpiPct)}${a.perfRating ? ` <span class="badge ${safeStatusClass(a.perfRating.rating)}" style="font-size:10px;">${escapeHtml(a.perfRating.rating)}</span>` : ''}${a.perfRating && a.perfRating.lowParticipation ? ` <span class="badge" style="font-size:10px;background:#B3261E;color:#fff;">Review</span>` : ''}${a.perfRating && a.perfRating.participationExempt ? ` <span class="badge" style="font-size:10px;">Leave</span>` : ''}</td>
+      <td title="${a.perfRating ? escapeHtml(a.perfRating.rating + ' | KPI ' + a.perfRating.kpiScore + ' | share ' + a.perfRating.share + '% | ' + a.perfRating.idx + '% of fair share | raw KPI% ' + a.storesKpiRawPct) : ''}">${fnum(a.storesKpiPct)}${a.perfRating ? ` <span class="badge ${safeStatusClass(a.perfRating.rating)}" style="font-size:10px;">${escapeHtml(a.perfRating.rating)}</span>` : ''}</td>
       <td><strong>${fnum(a.combinedFinalScore)}</strong> <button class="btn btn-outline btn-sm" style="padding:2px 6px" title="View Trend" data-action="openStaffTrend" data-id="${escapeHtml(a.staffId)}">📈</button></td>
       <td>${escapeHtml(a.grade)}</td>
-      <td><span class="badge ${safeStatusClass(a.finalRating)}">${escapeHtml(a.finalRating)}</span></td>
+      <td><span class="badge ${safeStatusClass(a.finalRating)}">${escapeHtml(a.finalRating)}</span>${a.finalRatingCapped ? ` <span class="tag" title="${escapeHtml(T('storesCapTip'))}: ${escapeHtml(a.finalRatingByScore)}">${escapeHtml(T('storesCapNote'))}</span>` : ''}</td>
     </tr>`).join('') || `<tr><td colspan="19" class="empty">${T('noActiveStaffData')}</td></tr>`;
 }
 
@@ -4468,7 +4492,7 @@ function exportFullAppraisal() {
     'Behav.(10)': a.criteria.behaviour, 'Train(10)': a.criteria.training, 'Remarks(5)': a.criteria.hrRemarks,
     'HR(100)': a.hrPending ? 'Pending' : a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
     'HR Final': a.hrPending ? 'Pending' : a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
-    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? 'Attendance not verified' : a.finalRating
+    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? 'Attendance not verified' : a.finalRating, 'Rating Note': a.finalRatingCapped ? ('Stores cap (rating by score: ' + a.finalRatingByScore + ')') : ''
   }));
   exportXlsx(rows, 'HR_Appraisal_Combined_' + document.getElementById('hrPeriod').value + '.xlsx');
 }
@@ -5538,26 +5562,28 @@ function repFmt(val, fmt, row, col) {
 // FAIR_SHARE_MODE in Code.gs):
 //   'EQUAL_SPLIT': Share % = staff KPI score / TOTAL KPI score of all staff in this report; Fair share = 100 / staff in report
 //   'FIXED'      : Share % = staff KPI score / Max Score; Fair share = 100 / ACTIVE staff (row.activeStaffCount from server)
-//   Fair-share % = Share % / Fair share x 100   (NOT capped - 100 = baseline reached, below 50 = Needs Improvement)
+//   Fair-share % = Share % / Fair share x 100   (NOT capped - 100 = Outstanding, 130+ = Extraordinary, below 35 = HR Review)
 //   Rating       = REP_FAIR_BANDS below applied to Fair-share %. Edit the cut-offs
 //                  here to match company policy (highest min first).
 // Needs 2+ staff and a positive total; with a single-staff filter it falls back
 // to the server rating badge. Display only - no stored score is changed.
+// Oct 2026 final approved bands - keep identical to HR_APPRAISAL_POLICY.STORES_RATING_MARKS.BANDS in Code.gs (ratings and cut-offs).
 const REP_FAIR_BANDS = [
-  { min: 141, rating: 'Outstanding' }, { min: 121, rating: 'Excellent' },
-  { min: 100, rating: 'Good' }, { min: 50, rating: 'Satisfactory' },
-  { min: 0, rating: 'Needs Improvement' }
+  { min: 130, rating: 'Extraordinary' }, { min: 100, rating: 'Outstanding' },
+  { min: 85, rating: 'Excellent' }, { min: 75, rating: 'Very Good' },
+  { min: 60, rating: 'Good' }, { min: 50, rating: 'Satisfactory' },
+  { min: 35, rating: 'Needs Improvement' }, { min: 0, rating: 'HR Review' }
 ];
 // 60% MINIMUM-ACHIEVEMENT RULE (Oct 2026) - keep identical to HR_APPRAISAL_POLICY.STORES_RATING_MARKS in Code.gs.
 // A staff whose own Overall % (KPI Score / Max Score) is >= REP_MIN_ACHIEVEMENT_PCT is never rated below
 // REP_MIN_ACHIEVEMENT_RATING. Floor only - not an automatic 60 marks; higher bands are untouched.
-const REP_FAIR_SHARE_MODE = 'EQUAL_SPLIT'; // or 'FIXED'
+const REP_FAIR_SHARE_MODE = 'EQUAL_SPLIT'; // Oct 2026 (was 'FIXED'); or 'FIXED' (keep identical to FAIR_SHARE_MODE in Code.gs)
 const REP_MIN_ACHIEVEMENT_PCT = 0; // 60% floor RETIRED (Oct 2026) - 0 = off; keep identical to MIN_ACHIEVEMENT_PCT in Code.gs
 const REP_MIN_ACHIEVEMENT_RATING = 'Satisfactory';
-const REP_FAIR_BAR_MAX = 160; // bar is drawn 0-150% of fair share (100% = equal split)
+const REP_FAIR_BAR_MAX = 160; // visual maximum only: bar is drawn 0-160% of fair share; the Index itself is never capped
 function repRatingFromPct_(pct) {
   const b = REP_FAIR_BANDS.find(x => pct >= x.min);
-  return b ? b.rating : 'Needs Improvement';
+  return b ? b.rating : REP_FAIR_BANDS[REP_FAIR_BANDS.length - 1].rating;
 }
 function repFairShareInfo_(row, col) {
   if (!row || !col) return null;
@@ -5575,7 +5601,7 @@ function repFairShareInfo_(row, col) {
     if (!(total > 0)) return null;
     share = earned / total * 100; fair = 100 / lastReportRows.length;
   }
-  const idx = Math.max(0, Math.round(share / fair * 100 * 10000) / 10000); // same float-safe rounding as the server
+  const idx = Math.max(0, r2(Math.round(share / fair * 100 * 10000) / 10000)); // same rounding as the server: the 2-decimal Index shown decides the band
   let rating = repRatingFromPct_(idx), floorApplied = false;
   const ach = Number(row.overallPct) || 0;
   const floorBand = REP_FAIR_BANDS.find(b => b.rating === REP_MIN_ACHIEVEMENT_RATING);
@@ -5826,7 +5852,7 @@ function printReport() {
     th{background:#eee;}
     .rt-top{display:flex;justify-content:space-between;gap:6px;margin-bottom:3px;} .rt-score{font-weight:700;} .rt-of,.rt-pct{color:#666;font-weight:500;} .rt-pct{margin-left:4px;font-size:10px;}
     .rt-cap{font-size:9px;color:#666;margin-top:2px;} .badge{font-size:10px;font-weight:700;} .rt-bar{position:relative;height:7px;background:#e6e6e6;border:1px solid #bbb;overflow:hidden;} .rt-bar i{display:block;height:100%;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .rt-bar b{position:absolute;top:0;bottom:0;width:1px;background:#fff;} .rt-bar b.rt-eq{width:2px;background:#333;}
-    .rt-Outstanding{background:#3F6B34;} .rt-Excellent{background:#2E8B7A;} .rt-Good{background:#B9A02F;} .rt-Satisfactory{background:#C08A2E;} .rt-NeedsImprovement{background:#B5493A;}
+    .rt-Extraordinary{background:#6A3FA0;} .rt-Outstanding{background:#3F6B34;} .rt-Excellent{background:#2E8B7A;} .rt-VeryGood{background:#7FA33A;} .rt-Good{background:#B9A02F;} .rt-Satisfactory{background:#C08A2E;} .rt-NeedsImprovement{background:#B5493A;} .rt-HRReview{background:#7A1F1F;}
   </style></head><body>
     <div class="lhCompany">${escapeHtml(lh.company)}</div>
     <div class="lhDept">${escapeHtml(lh.dept)}</div>
