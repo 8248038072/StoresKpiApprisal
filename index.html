@@ -1129,6 +1129,8 @@ main.content{
           <div class="form-row" id="repFilterRow">
             <div data-rep-filter="date"><label for="repFrom" data-i18n="from">From</label><input type="date" id="repFrom"></div>
             <div data-rep-filter="date"><label for="repTo" data-i18n="to">To</label><input type="date" id="repTo"></div>
+            <div data-rep-filter="monthRange"><label for="repFromMonth" data-i18n="fromMonth">From Month</label><input type="month" id="repFromMonth"></div>
+            <div data-rep-filter="monthRange"><label for="repToMonth" data-i18n="toMonth">To Month</label><input type="month" id="repToMonth"></div>
             <div data-rep-filter="section"><label for="repSection" data-i18n="section">Section</label>
               <select id="repSection"><option value="" data-i18n="all">All</option></select>
             </div>
@@ -1417,6 +1419,8 @@ const I18N = {
   leaveTitle: { en: "Leave", ta: "விடுப்பு" },
   leaveSub: { en: "Apply for leave and track status", ta: "விடுப்புக்கு விண்ணப்பித்து நிலையைக் கண்காணிக்கவும்" },
   from: { en: "From", ta: "தொடங்கும் தேதி" },
+  fromMonth: { en: "From Month", ta: "தொடங்கும் மாதம்" },
+  toMonth: { en: "To Month", ta: "முடியும் மாதம்" },
   to: { en: "To", ta: "முடியும் தேதி" },
   type: { en: "Type", ta: "வகை" },
   casual: { en: "Casual", ta: "சாதாரண" },
@@ -5419,22 +5423,37 @@ const REPORT_DEFS = {
       { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' }, { key: 'status', labelKey: 'status' }
     ], totals: ['monthlyTarget', 'approvedActual', 'balance', 'kpiScore', 'maxScore']
   },
+  // MONTH-WISE (Oct 2026): pick From Month / To Month (one month or many).
+  // Each calendar month is fetched separately from the existing
+  // getSectionPerformanceReport action (no backend change) and shown as its
+  // own line(s): Aug, then Sep, then Oct ... then a Total line.
   sectionPerf: {
-    action: 'getSectionPerformanceReport', labelKey: 'repSectionPerf', filters: ['date', 'section'],
-    // FIX (final pre-live audit, Aug 2026): backend getSectionPerformanceReport()
-    // was updated to return { rows, summary } (same fix as staffPerf), but this
-    // frontend entry was never updated to isSummaryPlusRows:true. Result: runReport()
-    // set rows = data (the whole {rows,summary} object, not an array), so
-    // lastReportRows.length was always undefined and the table permanently showed
-    // "No data found" for every query on this report, even with real data present.
+    action: 'getSectionPerformanceReport', labelKey: 'repSectionPerf', filters: ['monthRange', 'section'],
     isSummaryPlusRows: true,
+    customFetch: fetchSectionPerfMonthwise,
     columns: [
-      { key: 'section', labelKey: 'section' }, { key: 'staffCount', labelKey: 'colStaffCount' },
+      { key: 'month', labelKey: 'colMonth' }, { key: 'section', labelKey: 'section' }, { key: 'staffCount', labelKey: 'colStaffCount' },
       { key: 'monthlyTarget', labelKey: 'colMonthlyTarget', fmt: 'num' }, { key: 'approvedActual', labelKey: 'colApprovedActual', fmt: 'num' },
       { key: 'balance', labelKey: 'colBalance', fmt: 'num' }, { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' },
       { key: 'kpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
       { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'badge' }
-    ], totals: ['staffCount', 'monthlyTarget', 'approvedActual', 'balance', 'kpiScore', 'maxScore']
+    ],
+    // custom Total line: Target/Actual/Balance are sums, Achievement % is
+    // Total Actual / Total Target (not an average of monthly %), KPI/Max Score
+    // are the average per month so Max Score stays on the same scale.
+    totalsFn: function (rows) {
+      const r2 = x => Math.round(x * 100) / 100;
+      const months = new Set(rows.map(r => r.month)).size || 1;
+      const t = rows.reduce((a, r) => a + (Number(r.monthlyTarget) || 0), 0);
+      const ac = rows.reduce((a, r) => a + (Number(r.approvedActual) || 0), 0);
+      const k = rows.reduce((a, r) => a + (Number(r.kpiScore) || 0), 0) / months;
+      const m = rows.reduce((a, r) => a + (Number(r.maxScore) || 0), 0) / months;
+      return {
+        monthlyTarget: r2(t), approvedActual: r2(ac), balance: r2(t - ac),
+        achievementPct: t > 0 ? r2(ac / t * 100) : '', kpiScore: r2(k), maxScore: r2(m),
+        overallPct: m > 0 ? r2(k / m * 100) : ''
+      };
+    }
   },
   dateRangePerf: {
     action: 'getDateRangePerformanceReport', labelKey: 'repDateRangePerf', filters: ['date', 'section', 'staff', 'activity', 'workflow'],
@@ -5540,6 +5559,10 @@ function updateReportLetterhead(def) {
   const metaParts = [];
   if (sectionName) metaParts.push(`${T('section')}: ${sectionName}`);
   if (staffName) metaParts.push(`${T('staff')}: ${staffName}`);
+  if (def.filters.includes('monthRange')) {
+    const a = document.getElementById('repFromMonth').value, b = document.getElementById('repToMonth').value;
+    metaParts.push(`${T('colMonth')}: ${a === b ? a : a + ' to ' + b}`);
+  }
   metaParts.push(`${T('lhPreparedOn')}: ${new Date().toLocaleString()}`);
 
   lastReportMeta = {
@@ -5684,6 +5707,11 @@ function loadReportsView() {
     document.getElementById('repTo').valueAsDate = d;
     document.getElementById('repFrom').valueAsDate = new Date(d.getFullYear(), d.getMonth(), 1);
   }
+  if (!document.getElementById('repFromMonth').value) {
+    const d = new Date(), ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    document.getElementById('repFromMonth').value = ym;
+    document.getElementById('repToMonth').value = ym;
+  }
   buildReportTypeButtons();
   populateReportFilterDropdowns();
   applyReportFilterVisibility();
@@ -5745,8 +5773,61 @@ async function fetchStaffContribution(params) {
   return out.sort((a, b) => mi(a.month) - mi(b.month) || a.activityName.localeCompare(b.activityName) || a.workflowName.localeCompare(b.workflowName) || b.staffQty - a.staffQty);
 }
 
+// Month-wise Section Performance: one getSectionPerformanceReport call per
+// calendar month in the chosen From Month..To Month range (3 at a time).
+async function fetchSectionPerfMonthwise(params) {
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const fm = /^(\d{4})-(\d{2})$/.exec(document.getElementById('repFromMonth').value);
+  const tm = /^(\d{4})-(\d{2})$/.exec(document.getElementById('repToMonth').value);
+  const startIdx = Number(fm[1]) * 12 + Number(fm[2]) - 1, endIdx = Number(tm[1]) * 12 + Number(tm[2]) - 1;
+  const months = [];
+  for (let i = startIdx; i <= endIdx; i++) {
+    const y = Math.floor(i / 12), m = i % 12;
+    const pad = n => String(n).padStart(2, '0');
+    months.push({
+      label: MON[m] + '-' + y,
+      from: y + '-' + pad(m + 1) + '-01',
+      to: y + '-' + pad(m + 1) + '-' + pad(new Date(y, m + 1, 0).getDate())
+    });
+  }
+  const results = [];
+  for (let i = 0; i < months.length; i += 3) {
+    const batch = months.slice(i, i + 3);
+    const got = await Promise.all(batch.map(mo => callApi('getSectionPerformanceReport', { from: mo.from, to: mo.to, section: params.section })));
+    got.forEach((g, j) => results.push({ mo: batch[j], data: g }));
+  }
+  const rows = [];
+  let tTarget = 0, tActual = 0, tKpi = 0, tMax = 0;
+  results.forEach(({ mo, data }) => {
+    (data.rows || []).forEach(r => rows.push(Object.assign({ month: mo.label }, r)));
+    const s = data.summary || {};
+    tTarget += Number(s.monthlyTarget) || 0; tActual += Number(s.approvedActual) || 0;
+    tKpi += Number(s.kpiScore) || 0; tMax += Number(s.maxScore) || 0;
+  });
+  const r2 = x => Math.round(x * 100) / 100, n = months.length || 1;
+  return {
+    rows,
+    summary: {
+      monthlyTarget: r2(tTarget), approvedActual: r2(tActual), balance: r2(tTarget - tActual),
+      achievementPct: tTarget > 0 ? r2(tActual / tTarget * 100) : 0,
+      kpiScore: r2(tKpi / n), maxScore: r2(tMax / n)
+    }
+  };
+}
+
 async function runReport() {
   const def = REPORT_DEFS[currentReportId];
+  if (def.filters.includes('monthRange')) {
+    // Month-based report: turn From Month / To Month into first/last day and
+    // keep them in repFrom/repTo so Export CSV and Print show the same range.
+    const fmv = document.getElementById('repFromMonth').value, tmv = document.getElementById('repToMonth').value;
+    if (!fmv || !tmv) { toast(T('runReportFirst')); return; }
+    if (fmv > tmv) { toast('From Month must be before or equal to To Month'); return; }
+    const [fy, fmo] = fmv.split('-').map(Number), [ty, tmo] = tmv.split('-').map(Number);
+    if ((ty * 12 + tmo) - (fy * 12 + fmo) >= 12) { toast('Please select at most 12 months'); return; }
+    document.getElementById('repFrom').value = fmv + '-01';
+    document.getElementById('repTo').value = tmv + '-' + String(new Date(ty, tmo, 0).getDate()).padStart(2, '0');
+  }
   const from = document.getElementById('repFrom').value;
   const to = document.getElementById('repTo').value;
   if (!from || !to) { toast(T('runReportFirst')); return; }
@@ -5797,7 +5878,15 @@ async function runReport() {
     '<tr>' + def.columns.map(c => `<td>${repFmt(r[c.key], c.fmt, r, c)}</td>`).join('') + '</tr>'
   ).join('');
 
-  if (def.totals && def.totals.length) {
+  if (def.totalsFn) {
+    const tv = def.totalsFn(lastReportRows);
+    const totalsRow = def.columns.map((c, i) => {
+      if (i === 0) return `<td><strong>${T('colTotal')}</strong></td>`;
+      if (tv[c.key] === undefined) return '<td></td>';
+      return `<td><strong>${repFmt(tv[c.key], c.fmt || 'num')}</strong></td>`;
+    }).join('');
+    tbody.innerHTML += `<tr style="background:var(--cream-100)">${totalsRow}</tr>`;
+  } else if (def.totals && def.totals.length) {
     const totalsRow = def.columns.map((c, i) => {
       if (!def.totals.includes(c.key)) return i === 0 ? `<td><strong>${T('colTotal')}</strong></td>` : '<td></td>';
       const sum = lastReportRows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0);
