@@ -4444,7 +4444,7 @@ async function runFullAppraisal() {
   document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => a.hrPending ? `
     <tr>
       <td>${escapeHtml(a.staffName)}</td>
-      <td colspan="18" style="color:#8a6d1d;background:#fff8e1;">⏳ <strong>${T('hrPendingTitle')}</strong> ${a.attendanceRecordDays ? a.attendancePendingDays + ' / ' + a.attendanceRecordDays + ' ' + T('hrPendingDays') : T('hrPendingNoRecords')}</td>
+      <td colspan="18" style="color:#8a6d1d;background:#fff8e1;">⏳ ${a.hrRatingPending ? '<strong>HR rating pending / HR rating நிலுவையில்</strong> - Discipline, Policy, Behaviour not entered (Manual Scores tab).' : ''}${a.hrRatingPending && a.attendanceVerified === false ? ' ' : ''}${a.attendanceVerified === false ? '<strong>' + T('hrPendingTitle') + '</strong> ' + (a.attendanceRecordDays ? a.attendancePendingDays + ' / ' + a.attendanceRecordDays + ' ' + T('hrPendingDays') : T('hrPendingNoRecords')) : ''}</td>
     </tr>` : `
     <tr>
       <td>${escapeHtml(a.staffName)}</td>
@@ -4492,7 +4492,7 @@ function exportFullAppraisal() {
     'Behav.(10)': a.criteria.behaviour, 'Train(10)': a.criteria.training, 'Remarks(5)': a.criteria.hrRemarks,
     'HR(100)': a.hrPending ? 'Pending' : a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
     'HR Final': a.hrPending ? 'Pending' : a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
-    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? 'Attendance not verified' : a.finalRating, 'Rating Note': a.finalRatingCapped ? ('Stores cap (rating by score: ' + a.finalRatingByScore + ')') : ''
+    'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? (a.hrRatingPending ? 'HR rating pending' : 'Attendance not verified') : a.finalRating, 'Rating Note': a.finalRatingCapped ? ('Stores cap (rating by score: ' + a.finalRatingByScore + ')') : ''
   }));
   exportXlsx(rows, 'HR_Appraisal_Combined_' + document.getElementById('hrPeriod').value + '.xlsx');
 }
@@ -5262,7 +5262,19 @@ async function lockHrSnapshot() {
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
   if (!confirm('Approve and lock "' + periodLabel + '"? Once locked, Save Snapshot cannot overwrite it until it is re-opened.')) return;
   try {
-    const r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel }));
+    const from = document.getElementById('hrFrom').value, to = document.getElementById('hrTo').value;
+    let r;
+    try {
+      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to }));
+    } catch (e) {
+      // Lock guard (Oct 2026): server blocks the lock while HR ratings / attendance are incomplete.
+      if (!String(e.message || '').startsWith('LOCK_BLOCKED:')) throw e;
+      const details = e.message.replace('LOCK_BLOCKED:', '').split('||').map(x => '- ' + x.trim()).join('\n');
+      const reason = prompt('Cannot lock "' + periodLabel + '" yet:\n' + details +
+        '\n\nBest: Cancel, complete these, then lock again.\nTo lock anyway, type a reason (it is recorded in the Audit Log):');
+      if (!reason || !reason.trim()) { toast('Lock cancelled - complete the pending items first.'); return; }
+      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, overrideReason: reason.trim() }));
+    }
     // GO-LIVE FIX (audit item 2, Sep 2026): "warning, not block" - the lock
     // already went through (never held up by this); pendingReview (if any)
     // is shown right here, from the same response, so HR sees it at the
