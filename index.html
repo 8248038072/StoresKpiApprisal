@@ -1739,6 +1739,8 @@ const I18N = {
   repOfFairShare: { en: "of fair share", ta: "நியாய பங்கில்" },
   colStaffId: { en: "Staff ID", ta: "பணியாளர் ID" },
   colActualCount: { en: "Actual Count", ta: "நிகழ் எண்ணிக்கை" },
+  colPendingCount: { en: "Pending Count", ta: "நிலுவை எண்ணிக்கை" },
+  colRejectedCount: { en: "Rejected Count", ta: "நிராகரித்த எண்ணிக்கை" },
   colTotalActivities: { en: "Total Activities", ta: "மொத்த செயல்பாடுகள்" },
   colPartActivities: { en: "Participated Activities", ta: "பங்கேற்ற செயல்பாடுகள்" },
   colActivityPct: { en: "Activity %", ta: "செயல்பாடு %" },
@@ -5385,8 +5387,10 @@ const REPORT_DEFS = {
       { key: 'totalWorkflows', labelKey: 'colTotalWorkflows', fmt: 'num' },
       { key: 'participatedWorkflows', labelKey: 'colPartWorkflows', fmt: 'num' },
       { key: 'workflowPct', labelKey: 'colWorkflowPct', fmt: 'pct' },
-      { key: 'actualCount', labelKey: 'colActualCount', fmt: 'num' }
-    ], totals: ['actualCount']
+      { key: 'actualCount', labelKey: 'colActualCount', fmt: 'num' },
+      { key: 'pendingCount', labelKey: 'colPendingCount', fmt: 'num' },
+      { key: 'rejectedCount', labelKey: 'colRejectedCount', fmt: 'num' }
+    ], totals: ['actualCount', 'pendingCount', 'rejectedCount']
   },
   // ACTIVITY-STAFF PERFORMANCE REPORT (Sep 2026): one row per Staff x
   // Activity, Activity-first (all staff grouped under each Activity) -
