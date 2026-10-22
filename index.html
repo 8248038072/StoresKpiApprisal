@@ -5445,8 +5445,22 @@ const REPORT_DEFS = {
     // custom Total line: Target/Actual/Balance are sums, Achievement % is
     // Total Actual / Total Target (not an average of monthly %), KPI/Max Score
     // are the average per month so Max Score stays on the same scale.
-    totalsFn: function (rows) {
+    // FIX (Oct 2026): every Section row carries the full company Monthly
+    // Target / Max Score, so summing rows across Sections multiplied them by
+    // the Section count. When the report summary is available (it is the same
+    // company-level figure the summary cards show) the Total line now uses it,
+    // so cards and Total line always agree. Row-sum is only a fallback.
+    totalsFn: function (rows, summary) {
       const r2 = x => Math.round(x * 100) / 100;
+      if (summary && summary.monthlyTarget !== undefined) {
+        const t0 = Number(summary.monthlyTarget) || 0, ac0 = Number(summary.approvedActual) || 0;
+        const k0 = Number(summary.kpiScore) || 0, m0 = Number(summary.maxScore) || 0;
+        return {
+          monthlyTarget: r2(t0), approvedActual: r2(ac0), balance: r2(t0 - ac0),
+          achievementPct: t0 > 0 ? r2(ac0 / t0 * 100) : '', kpiScore: r2(k0), maxScore: r2(m0),
+          overallPct: m0 > 0 ? r2(k0 / m0 * 100) : ''
+        };
+      }
       const months = new Set(rows.map(r => r.month)).size || 1;
       const t = rows.reduce((a, r) => a + (Number(r.monthlyTarget) || 0), 0);
       const ac = rows.reduce((a, r) => a + (Number(r.approvedActual) || 0), 0);
@@ -5883,7 +5897,7 @@ async function runReport() {
   ).join('');
 
   if (def.totalsFn) {
-    const tv = def.totalsFn(lastReportRows);
+    const tv = def.totalsFn(lastReportRows, def.isSummaryPlusRows ? data.summary : undefined);
     const totalsRow = def.columns.map((c, i) => {
       if (i === 0) return `<td><strong>${T('colTotal')}</strong></td>`;
       if (tv[c.key] === undefined) return '<td></td>';
