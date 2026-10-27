@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stores KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
+<title>KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%3C/text%3E%3C/svg%3E">
 <!-- PERF (Sep 2026, item 6): xlsx (~1 MB) and Chart.js are NO LONGER downloaded on
      page load. They are fetched only when actually needed - Chart.js the
@@ -318,8 +318,8 @@ main.content{
   <div class="login-card">
     <button class="lang-toggle" id="langToggleLogin" onclick="toggleLang()">தமிழ் / EN</button>
     <div class="brand-mark">☕</div>
-    <h1 data-i18n="appTitle">Stores KPI &amp; Appraisal</h1>
-    <p class="sub" data-i18n="companyLine">Sri Narasu's Coffee Company Pvt Ltd &mdash; Stores Department</p>
+    <h1 data-i18n="appTitle">KPI &amp; Appraisal</h1>
+    <p class="sub" data-i18n="companyLine">Sri Narasu's Coffee Company Pvt Ltd</p>
     <div class="field">
       <label for="loginUserId" data-i18n="userId">User ID</label>
       <input id="loginUserId" type="text" autocomplete="username" placeholder="e.g. sakthivel">
@@ -337,7 +337,7 @@ main.content{
 <!-- ============ APP ============ -->
 <div id="app">
   <header class="topbar">
-    <div class="brand"><span class="dot"></span> <span data-i18n="appTitle">Stores KPI &amp; Appraisal</span></div>
+    <div class="brand"><span class="dot"></span> <span data-i18n="appTitle">KPI &amp; Appraisal</span></div>
     <div class="who">
       <span id="whoLabel"></span>
       <div id="notifBellWrap" style="position:relative;display:none;">
@@ -689,6 +689,27 @@ main.content{
         <h2 class="view-title" data-i18n="editWorkflowTitle">Edit Workflow</h2>
         <p class="view-sub" data-i18n="editWorkflowSub">Change Target, Weightage %, Unit, Expected Output or Status here — never edit the Workflow Master sheet directly. Max Score is read-only and always mirrors Weightage %. Every change is logged to Audit Log. Unit changes only apply to new entries going forward — past entries keep the Unit they were recorded with.</p>
         <div id="weightageWarningBanner" style="display:none;background:#fff3cd;border:1px solid #ffe08a;color:#7a5b00;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
+        <div style="margin-bottom:12px;"><button class="btn btn-brown" onclick="openAddWorkflow()">➕ Add Workflow</button></div>
+
+        <!-- ADD WORKFLOW (Manager only) - Multi-Section Phase 1 -->
+        <div class="card" id="addWfFormCard" style="display:none;">
+          <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)">➕ Add New Workflow</h3>
+          <div class="form-row">
+            <div><label for="addWfActivity">Activity *</label><select id="addWfActivity"></select></div>
+            <div><label for="addWfName">Workflow Name *</label><input type="text" id="addWfName" maxlength="120" placeholder="e.g. Batch Packing"></div>
+            <div><label for="addWfKpi">KPI Name *</label><input type="text" id="addWfKpi" maxlength="120" placeholder="e.g. Batches Packed"></div>
+            <div><label for="addWfUnit">Unit *</label><input type="text" id="addWfUnit" list="editWfUnitOptions" placeholder="e.g. Kg, Nos, Bills, Lines"></div>
+            <div><label for="addWfTarget">Monthly Target (blank = Not Set)</label><input type="number" id="addWfTarget" min="0" step="any"></div>
+            <div><label for="addWfWeightage">Weightage % *</label><input type="number" id="addWfWeightage" min="0" max="100" step="0.01"></div>
+            <div><label for="addWfExpectedOutput">Expected Output (description only)</label><input type="text" id="addWfExpectedOutput"></div>
+            <div><label for="addWfStatus">Status</label><select id="addWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
+          </div>
+          <label style="display:block;margin:8px 0 4px;">Applicable Section(s) * <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— only staff of the ticked Section(s) will see this workflow in the Working Register</span></label>
+          <div id="addWfSections" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;"></div>
+          <button class="btn btn-brown" id="addWfSaveBtn" onclick="saveAddWorkflow()">Save Workflow</button>
+          <button class="btn btn-outline" onclick="closeAddWorkflow()" data-i18n="cancelBtn">Cancel</button>
+        </div>
+
         <div class="card">
           <div class="table-wrap"><table id="editWfTable"><thead><tr>
             <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th></th>
@@ -706,7 +727,7 @@ main.content{
             <div><label for="editWfStatus" data-i18n="status">Status</label>
               <select id="editWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
             </div>
-            <div><label for="editWfSections" data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. SEC01,SEC02 or All"></div>
+            <div><label for="editWfSections" data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. Stores,Packing or All (Section names)"></div>
           </div>
           <button class="btn btn-brown" onclick="saveWorkflowEdit()" data-i18n="saveChanges">Save Changes</button>
           <button class="btn btn-outline" onclick="closeWorkflowEdit()" data-i18n="cancelBtn">Cancel</button>
@@ -1178,6 +1199,33 @@ main.content{
         </div>
       </section>
 
+      <!-- LOGIN ACCOUNTS (HR only) -->
+      <section class="view" id="view-loginAccounts">
+        <h2 class="view-title">Login Accounts</h2>
+        <p class="view-sub">HR creates and maintains logins for staff. New accounts get the starter password <strong>ChangeMe@123</strong> and must choose their own password at first login. Passwords are never shown or stored in plain text.</p>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
+            <div><label for="laSearch">Search</label><input type="text" id="laSearch" placeholder="Name / ID / User ID" oninput="renderLoginAccounts()"></div>
+            <div><label for="laSection">Section</label><select id="laSection" onchange="renderLoginAccounts()"></select></div>
+            <label style="display:flex;gap:6px;align-items:center;margin:0 6px 8px;"><input type="checkbox" id="laNoLoginOnly" onchange="renderLoginAccounts()"> No login yet</label>
+            <button class="btn btn-outline btn-sm" onclick="loadLoginAccounts()">↻ Refresh</button>
+            <button class="btn btn-brown btn-sm" id="laBulkBtn" onclick="bulkCreateLogins()">➕ Create logins for all staff without one</button>
+          </div>
+          <div id="laSummary" style="font-size:12.5px;color:var(--coffee-500);margin-bottom:8px;"></div>
+          <div id="laResult" style="display:none;background:#eef7ee;border:1px solid #b9dcb9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;"></div>
+          <div class="table-wrap"><table id="laTable"><thead><tr><th>Staff ID</th><th>Name</th><th>Section</th><th>Designation</th><th>User ID</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card" id="laCreateCard" style="display:none;">
+          <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)">Create login for: <span id="laCreateName"></span></h3>
+          <div class="form-row">
+            <div><label for="laCreateUserId">User ID (blank = automatic)</label><input type="text" id="laCreateUserId" maxlength="30" placeholder="e.g. sakthivel"></div>
+            <div><label for="laCreateRole">Role</label><select id="laCreateRole"><option value="Staff">Staff</option><option value="Manager">Manager</option></select></div>
+          </div>
+          <button class="btn btn-brown btn-sm" id="laCreateBtn" onclick="saveLoginAccount()">Create Login</button>
+          <button class="btn btn-outline btn-sm" onclick="closeLoginCreate()">Cancel</button>
+        </div>
+      </section>
+
       <!-- MASTERS (Manager only) -->
       <section class="view" id="view-masters">
         <h2 class="view-title" data-i18n="mastersTitle">Master Data</h2>
@@ -1205,7 +1253,7 @@ main.content{
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h3 style="font-size:14px;color:var(--coffee-700)">Section Master</h3>
-            <button class="btn btn-brown btn-sm" onclick="openSectionForm(null)">+ Add Section</button>
+            <button class="btn btn-brown btn-sm" id="addSectionBtn" onclick="openSectionForm(null)">+ Add Section</button>
           </div>
           <div class="table-wrap"><table id="sectionTable"><thead><tr><th>ID</th><th>Section Name</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="sectionFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
@@ -1218,7 +1266,7 @@ main.content{
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h3 style="font-size:14px;color:var(--coffee-700)">Activity Master</h3>
-            <button class="btn btn-brown btn-sm" onclick="openActivityForm(null)">+ Add Activity</button>
+            <button class="btn btn-brown btn-sm" id="addActivityBtn" onclick="openActivityForm(null)">+ Add Activity</button>
           </div>
           <div class="table-wrap"><table id="activityTable"><thead><tr><th>ID</th><th>Code</th><th>Name</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="activityFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
@@ -1292,11 +1340,11 @@ let SESSION = null;   // {userId, staffId, staffName, role}
    I18N (English / Tamil)
    ============================================================ */
 const I18N = {
-  appTitle: { en: "Stores KPI &amp; Appraisal", ta: "ஸ்டோர்ஸ் KPI &amp; மதிப்பீடு" },
+  appTitle: { en: "KPI &amp; Appraisal", ta: "KPI &amp; மதிப்பீடு" },
   mastersLoadFailedTitle: { en: "Could not load Staff / Activity / Workflow data", ta: "பணியாளர் / செயல்பாடு / வொர்க்ஃப்ளோ தரவு ஏற்ற முடியவில்லை" },
   mastersLoadFailedBody: { en: "The Working Register and other screens need this Master Data to work, and it did not load completely. This is usually a temporary connection hiccup - please try again.", ta: "Working Register மற்றும் மற்ற திரைகள் வேலை செய்ய இந்த Master Data தேவை, அது முழுமையாக ஏற்றப்படவில்லை. இது பொதுவாக ஒரு தற்காலிக இணைப்பு பிரச்சனை - மீண்டும் முயற்சிக்கவும்." },
   retryLoading: { en: "Retry", ta: "மீண்டும் முயற்சி" },
-  companyLine: { en: "Sri Narasu's Coffee Company Pvt Ltd &mdash; Stores Department", ta: "ஸ்ரீ நரசு'ஸ் காபி கம்பெனி பிரைவேட் லிமிடெட் &mdash; ஸ்டோர்ஸ் துறை" },
+  companyLine: { en: "Sri Narasu's Coffee Company Pvt Ltd", ta: "ஸ்ரீ நரசு'ஸ் காபி கம்பெனி பிரைவேட் லிமிடெட்" },
   userId: { en: "User ID", ta: "பயனர் ஐடி" },
   password: { en: "Password", ta: "கடவுச்சொல்" },
   logIn: { en: "Log In", ta: "உள்நுழைக" },
@@ -1359,6 +1407,16 @@ const I18N = {
   targetsForMonth: { en: "Targets for Selected Month", ta: "தேர்ந்தெடுக்கப்பட்ட மாதத்திற்கான இலக்குகள்" },
   kpi: { en: "KPI", ta: "KPI" },
   targetStatusTitle: { en: "Target Status", ta: "இலக்கு நிலை" },
+  tsTotalTarget: { en: "Total Monthly Target", ta: "மொத்த மாதாந்திர இலக்கு" },
+  tsTotalApproved: { en: "Total Approved Qty", ta: "மொத்த அங்கீகரிக்கப்பட்ட அளவு" },
+  tsExcess: { en: "Excess Over Target", ta: "இலக்கிற்கு மேல் கூடுதல்" },
+  tsExcessHint: { en: "workflows above 100%", ta: "100%-க்கு மேல் உள்ள பணிப்பாய்வுகள்" },
+  tsCounted: { en: "Qty Counted For KPI", ta: "KPI-க்கு எடுத்த அளவு" },
+  tsRemaining: { en: "Remaining Target", ta: "மீதமுள்ள இலக்கு" },
+  tsProgress: { en: "Overall Progress", ta: "மொத்த முன்னேற்றம்" },
+  tsTotalWf: { en: "Total Workflows", ta: "மொத்த பணிப்பாய்வுகள்" },
+  tsCompletedWf: { en: "Completed Workflows", ta: "முடிந்த பணிப்பாய்வுகள்" },
+  tsPendingWf: { en: "Pending Workflows", ta: "நிலுவை பணிப்பாய்வுகள்" },
   targetStatusSub: { en: "Progress of each workflow against its monthly target (Approved entries only)", ta: "ஒவ்வொரு பணிப்பாய்வின் மாதாந்திர இலக்கிற்கு எதிரான முன்னேற்றம் (அங்கீகரிக்கப்பட்ட பதிவுகள் மட்டும்)" },
   target: { en: "Target", ta: "இலக்கு" },
   source: { en: "Source", ta: "மூலம்" },
@@ -1554,7 +1612,7 @@ const I18N = {
   weightagePct: { en: "Weightage %", ta: "எடை %" },
   maxScore: { en: "Max Score", ta: "அதிகபட்ச மதிப்பெண்" },
   maxScoreReadonly: { en: "Max Score (read-only — always equals Weightage %)", ta: "அதிகபட்ச மதிப்பெண் (Read-Only — எப்போதும் Weightage %-க்கு சமம்)" },
-  editWfSectionsLabel: { en: "Sections (comma-separated Section IDs, or \"All\")", ta: "பிரிவுகள் (கமா-பிரிக்கப்பட்ட Section ID, அல்லது \"All\")" },
+  editWfSectionsLabel: { en: "Sections (comma-separated Section Names, or \"All\")", ta: "பிரிவுகள் (கமா-பிரிக்கப்பட்ட Section பெயர்கள், அல்லது \"All\")" },
   weightageMismatchWarning: { en: "The Weightage % total across all Active workflows (Attendance excluded) does not equal 100 — Stores KPI % will not add up correctly until fixed:", ta: "அனைத்து Active பணிப்பாய்வுகளின் Weightage % மொத்தமும் (Attendance தவிர) 100 இல்லை — சரிசெய்யும் வரை Stores KPI % சரியாக கூடாது:" },
   expectedOutput: { en: "Expected Output", ta: "எதிர்பார்க்கப்படும் வெளியீடு" },
   editWorkflowTitle: { en: "Edit Workflow", ta: "பணிப்பாய்வு திருத்தம்" },
@@ -1686,6 +1744,7 @@ const I18N = {
   // name + prepared-on timestamp shown on the Reports screen and on Print) ----
   lhCompanyName: { en: "Sri Narasu's Coffee Company Pvt Ltd", ta: "ஸ்ரீ நரசு'ஸ் காபி கம்பெனி பிரைவேட் லிமிடெட்" },
   lhDepartmentLabel: { en: "Department", ta: "துறை" },
+  lhAllSections: { en: "All Sections", ta: "அனைத்து பிரிவுகள்" },
   lhDepartmentDefault: { en: "Stores Department", ta: "ஸ்டோர்ஸ் துறை" },
   lhPreparedOn: { en: "Report Prepared On", ta: "அறிக்கை தயாரிக்கப்பட்ட நேரம்" },
   statusDraft: { en: "Draft", ta: "வரைவு" },
@@ -2306,7 +2365,8 @@ const NAV_ITEMS = [
   { id: 'scoreBreakdown', label: '🔍 Score Breakdown', labelTa: '🔍 மதிப்பெண் விவரம்', roles: ['Manager'] },
   { id: 'hrAppraisal', label: '🎖️ HR Appraisal', labelTa: '🎖️ HR மதிப்பீடு', roles: ['Manager', 'HR'] },
   { id: 'reports', label: '📁 Reports', labelTa: '📁 அறிக்கைகள்', roles: ['Manager'] },
-  { id: 'masters', label: '⚙️ Master Data', labelTa: '⚙️ மூல தரவு', roles: ['Manager'] }
+  { id: 'masters', label: '⚙️ Master Data', labelTa: '⚙️ மூல தரவு', roles: ['Manager', 'HR'] },
+  { id: 'loginAccounts', label: '🔑 Login Accounts', labelTa: '🔑 உள்நுழைவு கணக்குகள்', roles: ['HR'] }
 ];
 
 function navLabel(n) { return (CURRENT_LANG === 'ta' && n.labelTa) ? n.labelTa : n.label; }
@@ -2366,6 +2426,7 @@ function showView(id) {
   if (id === 'myScore') loadMyScore();
   if (id === 'scoreBreakdown') loadScoreBreakdownStaffList();
   if (id === 'masters') loadMastersView();
+  if (id === 'loginAccounts') loadLoginAccounts();
   if (id === 'hrAppraisal') initHrAppraisal();
   if (id === 'reports') loadReportsView();
 }
@@ -2391,13 +2452,24 @@ function _applyMasters(m) {
   if (MASTERS.memoDecisionOptions) MEMO_DECISIONS = MASTERS.memoDecisionOptions;
   if (MASTERS.teamWorkflowIds) TEAM_WORKFLOW_IDS = MASTERS.teamWorkflowIds;
 }
+// FIX (Oct 2026, multi-section): a brand-new Section (e.g. Purchase) has no
+// Workflows/Activities yet, and a fresh install has no Staff for HR - those are
+// VALID empty states, not load failures. The old check demanded all three lists
+// be non-empty, so such a user (even with a correct login) got stuck on
+// "Could not load Staff / Activity / Workflow data". A response is now accepted
+// when it has the right SHAPE (all three are arrays); a Manager/Staff must also
+// see at least their own staff row (proves the sheet read really worked).
+function _mastersLookComplete(m) {
+  if (!m || !Array.isArray(m.staff) || !Array.isArray(m.activities) || !Array.isArray(m.workflows)) return false;
+  if (SESSION && SESSION.role === 'HR') return true;   // HR may start from an empty Staff sheet and add Sections/Staff
+  return m.staff.length > 0;                           // Manager/Staff always see at least themselves
+}
 async function loadMastersData(maxAttempts) {
   maxAttempts = maxAttempts || 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const m = await callApi('getMasters', {});
-      const complete = m && (m.staff && m.staff.length) &&
-        (m.activities && m.activities.length) && (m.workflows && m.workflows.length);
+      const complete = _mastersLookComplete(m);
       if (complete) {
         _applyMasters(m);
         // SPEED (Sep 2026): remember Masters for this tab so a browser refresh (F5)
@@ -2467,9 +2539,7 @@ async function enterApp() {
     // then refresh them from the server in the background.
     const raw = sessionStorage.getItem('kpi_masters');
     const c = raw ? JSON.parse(raw) : null;
-    if (c && c.u === SESSION.staffId && Date.now() - c.t < 30 * 60 * 1000 && c.m &&
-        c.m.staff && c.m.staff.length && c.m.activities && c.m.activities.length &&
-        c.m.workflows && c.m.workflows.length) {
+    if (c && c.u === SESSION.staffId && Date.now() - c.t < 30 * 60 * 1000 && _mastersLookComplete(c.m)) {
       _applyMasters(c.m);
       ok = true;
       loadMastersData().catch(() => {});
@@ -2481,6 +2551,10 @@ async function enterApp() {
     return;
   }
 
+  try { // Phase 2: show the user's Section next to the name
+    const _me = (MASTERS.staff || []).find(x => x['Staff ID'] === SESSION.staffId);
+    if (_me && _me['Section']) document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role + ' · ' + _me['Section'];
+  } catch (e) {}
   buildNav();
   document.getElementById('regDate').valueAsDate = new Date();
   document.getElementById('attDate').valueAsDate = new Date();
@@ -2684,6 +2758,10 @@ document.addEventListener('click', (e) => {
     case 'decideApprovalLines': decideApprovalLines(id, decision, btn); break;
     case 'decideApprovalGroup': decideApprovalGroup(id, decision, btn); break;
     case 'openWorkflowEdit': openWorkflowEdit(id); break;
+    case 'laCreate': openLoginCreate(id); break;
+    case 'laReset': resetLoginPw(id); break;
+    case 'laUnlock': unlockLogin(id); break;
+    case 'laToggle': toggleLoginStatus(id, btn.dataset.status); break;
     case 'decideLeaveRequest': decideLeaveRequest(id, decision); break;
     case 'verifyAttendanceRow': verifyAttendanceRow(id, btn.dataset.date, decision, btn); break;
     case 'deleteMonthlyTarget': deleteMonthlyTarget(id); break;
@@ -2998,7 +3076,14 @@ function _drawBarChartNow(canvasId, dataObj, color) {
 function populateRegActivitySelect() {
   const sel = document.getElementById('regActivity');
   const prev = sel.value;
-  sel.innerHTML = '<option value="">Select</option>' + MASTERS.activities.map(a =>
+  const _mySec = (typeof getSessionSectionId === 'function') ? getSessionSectionId() : '';
+  // FIX (Oct 2026): the Activity dropdown used to be filtered for Staff only - a Manager saw EVERY activity,
+  // including ones whose workflows are all Inactive or belong to another Section. Now every role that
+  // uses the Register (Staff AND Manager) sees only Activities that have at least one Active workflow
+  // applicable to his own Section.
+  const _acts = (MASTERS.activities || []).filter(a => (MASTERS.workflows || []).some(w => w['Activity ID'] === a['Activity ID'] &&
+        w['Status'] !== 'Inactive' && workflowAppliesToSection(w, _mySec)));
+  sel.innerHTML = '<option value="">Select</option>' + _acts.map(a =>
     `<option value="${escapeHtml(a['Activity ID'])}">${escapeHtml(a['Activity Name'])}</option>`).join('');
   sel.value = prev;
 }
@@ -3100,9 +3185,17 @@ function getSessionSectionId() {
   return s ? (s['Section'] || '') : '';
 }
 function workflowAppliesToSection(w, sectionId) {
-  const raw = (w['Sections'] || '').trim();
-  if (!raw || raw.toLowerCase() === 'all') return true; // unset/"All" = every Section
-  return raw.split(',').map(x => x.trim()).indexOf(sectionId) !== -1;
+  const raw = String(w['Sections'] || '').trim();
+  if (raw.toLowerCase() === 'all') return true; // "All" = every Section
+  // Phase 2: blank Sections = a legacy workflow = STORES only (matches the server rule _wfCountsForSection_)
+  if (!raw) return String(sectionId || 'Stores').trim().toLowerCase() === 'stores';
+  // Multi-Section Phase 1: staff 'Section' holds the Section NAME; the Sections
+  // field may hold Section names (new Add Workflow form) or legacy Section IDs.
+  const me = String(sectionId || '').trim().toLowerCase();
+  if (!me) return false;
+  const sec = (MASTERS.sections || []).find(x => String(x['Section Name']).trim().toLowerCase() === me);
+  const myId = sec ? String(sec['Section ID']).trim().toLowerCase() : '';
+  return raw.split(',').map(x => x.trim().toLowerCase()).some(t => t === 'all' || t === me || (myId && t === myId));
 }
 function renderWorkflowChecklist() {
   const activityId = document.getElementById('regActivity').value;
@@ -3110,7 +3203,7 @@ function renderWorkflowChecklist() {
   const mySection = getSessionSectionId();
   CURRENT_ACTIVITY_WFS = activityId
     ? MASTERS.workflows.filter(w => w['Activity ID'] === activityId && w['Status'] !== 'Inactive'
-        && (SESSION.role !== 'Staff' || workflowAppliesToSection(w, mySection)))
+        && workflowAppliesToSection(w, mySection))
     : [];
   renderChecklistRows();
 }
@@ -3723,11 +3816,18 @@ async function loadWorkflowEditList() {
     validation = d.validation;
   } catch (e) { toast(e.message); return; }
   EDIT_WF_ROWS = rows;
+  MASTERS.workflows = rows; // keep the session snapshot in step with the live Workflow Master
 
   const banner = document.getElementById('weightageWarningBanner');
   if (validation && !validation.valid) {
     banner.style.display = 'block';
-    banner.innerHTML = '⚠️ ' + T('weightageMismatch').replace('{pct}', validation.grandTotal);
+    // Phase 2: the 100-point rule is per Section - list every Section that does not total 100.
+    if (validation.sections && validation.sections.length) {
+      banner.innerHTML = '⚠️ Weightage % of the Active workflows must total 100 for each Section. Not 100 yet: ' +
+        validation.sections.filter(x => !x.valid).map(x => '<strong>' + escapeHtml(x.section) + '</strong> = ' + escapeHtml(x.total)).join(' · ');
+    } else {
+      banner.innerHTML = '⚠️ ' + T('weightageMismatch').replace('{pct}', validation.grandTotal);
+    }
   } else {
     banner.style.display = 'none';
     banner.innerHTML = '';
@@ -3766,6 +3866,205 @@ function openWorkflowEdit(workflowId) {
   document.getElementById('editWfStatus').value = w['Status'] || 'Active';
   document.getElementById('editWfSections').value = w['Sections'] || '';
   document.getElementById('editWfFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ============================================================
+   LOGIN ACCOUNTS (HR only) - Multi-Section Phase 1.5
+   Backed by getLoginAccounts / createLoginAccount / bulkCreateLoginAccounts /
+   resetLoginPassword / unlockLoginAccount / setLoginAccountStatus (all HR-only
+   on the server; this screen is just the UI for them).
+   ============================================================ */
+let LOGIN_ACCOUNTS = [];
+let LA_CREATE_STAFF_ID = '';
+async function loadLoginAccounts() {
+  try { LOGIN_ACCOUNTS = await callApi('getLoginAccounts', {}); }
+  catch (e) { toast(e.message); return; }
+  const secs = [...new Set(LOGIN_ACCOUNTS.map(r => r.section).filter(Boolean))].sort();
+  const sel = document.getElementById('laSection');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + secs.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
+  sel.value = prev;
+  renderLoginAccounts();
+}
+function renderLoginAccounts() {
+  const q = document.getElementById('laSearch').value.trim().toLowerCase();
+  const sec = document.getElementById('laSection').value;
+  const noLogin = document.getElementById('laNoLoginOnly').checked;
+  const all = LOGIN_ACCOUNTS;
+  const rows = all.filter(r =>
+    (!sec || r.section === sec) && (!noLogin || !r.userId) &&
+    (!q || [r.staffId, r.staffName, r.userId].some(v => String(v || '').toLowerCase().indexOf(q) !== -1)));
+  const activeStaff = all.filter(r => r.staffStatus !== 'Inactive');
+  const withoutLogin = activeStaff.filter(r => !r.userId && r.staffId).length;
+  document.getElementById('laSummary').textContent =
+    'Active staff: ' + activeStaff.length + ' · With login: ' + (activeStaff.length - withoutLogin) + ' · Without login: ' + withoutLogin;
+  document.getElementById('laBulkBtn').disabled = withoutLogin === 0;
+  document.querySelector('#laTable tbody').innerHTML = rows.map(r => {
+    let actions = '';
+    if (!r.userId) {
+      actions = r.staffStatus === 'Inactive' ? '' :
+        `<button class="btn btn-brown btn-sm" data-action="laCreate" data-id="${escapeHtml(r.staffId)}">Create Login</button>`;
+    } else if (r.role !== 'HR') {
+      actions =
+        `<button class="btn btn-outline btn-sm" data-action="laReset" data-id="${escapeHtml(r.userId)}">Reset Password</button> ` +
+        (r.locked ? `<button class="btn btn-outline btn-sm" data-action="laUnlock" data-id="${escapeHtml(r.userId)}">Unlock</button> ` : '') +
+        `<button class="btn btn-outline btn-sm" data-action="laToggle" data-id="${escapeHtml(r.userId)}" data-status="${r.status === 'Active' ? 'Inactive' : 'Active'}">${r.status === 'Active' ? 'Deactivate' : 'Activate'}</button>`;
+    }
+    const flags = (r.mustChangePassword ? ' <span class="badge" title="Has not set own password yet">starter pwd</span>' : '') +
+                  (r.locked ? ' <span class="badge Rejected" title="Locked after failed attempts">locked</span>' : '');
+    return `<tr>
+      <td>${escapeHtml(r.staffId)}</td><td>${escapeHtml(r.staffName)}</td><td>${escapeHtml(r.section)}</td><td>${escapeHtml(r.designation)}</td>
+      <td>${r.userId ? escapeHtml(r.userId) : '<span style="color:var(--coffee-500)">— no login —</span>'}${flags}</td>
+      <td>${escapeHtml(r.role)}</td>
+      <td>${r.userId ? `<span class="badge ${safeStatusClass(r.status)}">${escapeHtml(r.status)}</span>` : ''}</td>
+      <td>${actions}</td></tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">No staff found</td></tr>';
+}
+function laShowResult(html) {
+  const el = document.getElementById('laResult');
+  el.innerHTML = html;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function openLoginCreate(staffId) {
+  const r = LOGIN_ACCOUNTS.find(x => x.staffId === staffId);
+  if (!r) return;
+  LA_CREATE_STAFF_ID = staffId;
+  document.getElementById('laCreateName').textContent = r.staffName + ' (' + r.staffId + ', ' + (r.section || '-') + ')';
+  document.getElementById('laCreateUserId').value = '';
+  document.getElementById('laCreateRole').value = 'Staff';
+  document.getElementById('laCreateCard').style.display = 'block';
+  document.getElementById('laCreateCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function closeLoginCreate() {
+  document.getElementById('laCreateCard').style.display = 'none';
+  LA_CREATE_STAFF_ID = '';
+}
+async function saveLoginAccount() {
+  if (!LA_CREATE_STAFF_ID) return;
+  const btn = document.getElementById('laCreateBtn');
+  btn.disabled = true;
+  try {
+    const d = await callApi('createLoginAccount', {
+      staffId: LA_CREATE_STAFF_ID,
+      userId: document.getElementById('laCreateUserId').value.trim(),
+      role: document.getElementById('laCreateRole').value
+    });
+    closeLoginCreate();
+    laShowResult('✅ Login created. User ID: <strong>' + escapeHtml(d.userId) + '</strong> · Starter password: <strong>' + escapeHtml(d.defaultPassword) + '</strong> (must be changed at first login).');
+    await loadLoginAccounts();
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; }
+}
+async function bulkCreateLogins() {
+  const btn = document.getElementById('laBulkBtn');
+  const pendingCount = LOGIN_ACCOUNTS.filter(r => !r.userId && r.staffId && r.staffStatus !== 'Inactive').length;
+  if (!pendingCount) { toast('Every active staff already has a login'); return; }
+  if (!confirm('Create Staff-role logins for ' + pendingCount + ' active staff who have none?\n\nStarter password: ChangeMe@123 (must be changed at first login).\nManager logins are not created here - create those one by one.')) return;
+  btn.disabled = true;
+  const made = [];
+  let defaultPassword = 'ChangeMe@123';
+  try {
+    for (let guard = 0; guard < 40; guard++) {
+      laShowResult('⏳ Creating logins… ' + made.length + ' of ' + pendingCount + ' done. Please keep this page open.');
+      const d = await callApi('bulkCreateLoginAccounts', {});
+      (d.accounts || []).forEach(a => made.push(a));
+      if (d.defaultPassword) defaultPassword = d.defaultPassword;
+      if (!d.remaining || !d.created) break; // done, or nothing new could be created this round
+    }
+  } catch (e) { toast(e.message); }
+  btn.disabled = false;
+  if (made.length) {
+    laShowResult('✅ ' + made.length + ' logins created. Starter password for all: <strong>' + escapeHtml(defaultPassword) + '</strong> (each person must change it at first login). ' +
+      '<button class="btn btn-outline btn-sm" onclick="downloadNewLogins()">⬇ Download list (CSV)</button>');
+    window.__laLastBulk = made;
+  } else {
+    laShowResult('No new logins were created.');
+  }
+  await loadLoginAccounts();
+}
+function downloadNewLogins() {
+  const made = window.__laLastBulk || [];
+  const csv = ['User ID,Staff ID,Staff Name'].concat(made.map(a => [a.userId, a.staffId, '"' + String(a.staffName).replace(/"/g, '""') + '"'].join(','))).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'new-logins.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function resetLoginPw(userId) {
+  if (!confirm('Reset password for "' + userId + '" to the starter password? They will be logged out and must set a new password at next login.')) return;
+  try {
+    const d = await callApi('resetLoginPassword', { userId });
+    laShowResult('✅ Password reset for <strong>' + escapeHtml(d.userId) + '</strong>. Starter password: <strong>' + escapeHtml(d.defaultPassword) + '</strong>.');
+    await loadLoginAccounts();
+  } catch (e) { toast(e.message); }
+}
+async function unlockLogin(userId) {
+  try { await callApi('unlockLoginAccount', { userId }); toast('Unlocked'); await loadLoginAccounts(); }
+  catch (e) { toast(e.message); }
+}
+async function toggleLoginStatus(userId, status) {
+  if (status === 'Inactive' && !confirm('Deactivate login "' + userId + '"? They will be logged out and cannot sign in until re-activated.')) return;
+  try { await callApi('setLoginAccountStatus', { userId, status }); toast(status === 'Active' ? 'Activated' : 'Deactivated'); await loadLoginAccounts(); }
+  catch (e) { toast(e.message); }
+}
+
+// ---- ADD WORKFLOW (Manager only) - Multi-Section Phase 1 ----
+function openAddWorkflow() {
+  const acts = (MASTERS.activities || []);
+  document.getElementById('addWfActivity').innerHTML =
+    '<option value="">Select</option>' + acts.map(a => `<option value="${escapeHtml(a['Activity ID'])}">${escapeHtml(a['Activity Name'])}</option>`).join('');
+  const secs = (MASTERS.sections || []);
+  // A Section Manager only has his own Section (server rule): it is pre-ticked and fixed, and there is no "All Sections".
+  const ownOnly = SESSION.role === 'Manager' && secs.length === 1;
+  document.getElementById('addWfSections').innerHTML =
+    (ownOnly ? '' : `<label style="font-weight:600;"><input type="checkbox" id="addWfSecAll" onchange="toggleAddWfSectionsAll(this.checked)"> All Sections</label>`) +
+    secs.map(sc => `<label><input type="checkbox" class="addWfSecChk" value="${escapeHtml(sc['Section Name'])}"${ownOnly ? ' checked disabled' : ''}> ${escapeHtml(sc['Section Name'])}</label>`).join('');
+  ['addWfName','addWfKpi','addWfUnit','addWfTarget','addWfWeightage','addWfExpectedOutput'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('addWfStatus').value = 'Active';
+  document.getElementById('addWfFormCard').style.display = 'block';
+  document.getElementById('addWfFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function toggleAddWfSectionsAll(checked) {
+  document.querySelectorAll('#addWfSections .addWfSecChk').forEach(cb => { cb.checked = false; cb.disabled = checked; });
+}
+function closeAddWorkflow() {
+  document.getElementById('addWfFormCard').style.display = 'none';
+}
+async function saveAddWorkflow() {
+  const btn = document.getElementById('addWfSaveBtn');
+  const activityId = document.getElementById('addWfActivity').value;
+  const workflowName = document.getElementById('addWfName').value.trim();
+  const kpiName = document.getElementById('addWfKpi').value.trim();
+  const unit = document.getElementById('addWfUnit').value.trim();
+  const weightage = document.getElementById('addWfWeightage').value;
+  if (!activityId) { toast('Select an Activity'); return; }
+  if (!workflowName) { toast('Workflow Name is required'); return; }
+  if (!kpiName) { toast('KPI Name is required'); return; }
+  if (!unit) { toast(T('unitRequired')); return; }
+  if (weightage === '' || isNaN(Number(weightage)) || Number(weightage) < 0 || Number(weightage) > 100) { toast('Weightage % must be between 0 and 100'); return; }
+  const all = document.getElementById('addWfSecAll') && document.getElementById('addWfSecAll').checked;
+  const picked = [...document.querySelectorAll('#addWfSections .addWfSecChk:checked')].map(cb => cb.value);
+  if (!all && !picked.length) { toast('Select at least one Section (or All Sections)'); return; }
+  if (btn) btn.disabled = true;
+  try {
+    await callApi('addWorkflow', {
+      actorRole: SESSION.role, actorUserId: SESSION.userId,
+      activityId, workflowName, kpiName, unit,
+      target: document.getElementById('addWfTarget').value,
+      weightage,
+      expectedOutput: document.getElementById('addWfExpectedOutput').value,
+      status: document.getElementById('addWfStatus').value,
+      sections: all ? 'All' : picked.join(',')
+    });
+    toast('Workflow added');
+    closeAddWorkflow();
+    await loadWorkflowEditList();
+    loadMastersData().catch(() => {}); // refresh MASTERS so Working Register/Targets see the new workflow at once
+  } catch (e) { toast(e.message); }
+  finally { if (btn) btn.disabled = false; }
 }
 
 function closeWorkflowEdit() {
@@ -4149,13 +4448,15 @@ async function loadTargetStatus() {
   try { d = await callApi('getTargetDashboard', { month }); } catch (e) { toast(e.message); return; }
 
   document.getElementById('targetDashStats').innerHTML = `
-    <div class="stat-card"><div class="label">Total Monthly Target</div><div class="value">${d.totalMonthlyTarget}</div></div>
-    <div class="stat-card alt"><div class="label">Total Approved Qty</div><div class="value">${d.totalApprovedQty}</div></div>
-    <div class="stat-card"><div class="label">Remaining Target</div><div class="value">${d.remainingTarget}</div></div>
-    <div class="stat-card alt"><div class="label">Overall Progress</div><div class="value">${d.overallProgressPct}%</div></div>
-    <div class="stat-card"><div class="label">Total Workflows</div><div class="value">${d.totalWorkflows}</div></div>
-    <div class="stat-card alt"><div class="label">Completed Workflows</div><div class="value">${d.completedWorkflows}</div></div>
-    <div class="stat-card"><div class="label">Pending Workflows</div><div class="value">${d.pendingWorkflows}</div></div>
+    <div class="stat-card"><div class="label">${T('tsTotalTarget')}</div><div class="value">${d.totalMonthlyTarget}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsTotalApproved')}</div><div class="value">${d.totalApprovedQty}</div></div>
+    <div class="stat-card"><div class="label">${T('tsExcess')}</div><div class="value">${d.excessQty || 0}</div><div style="font-size:11px;opacity:.85;margin-top:2px">${T('tsExcessHint')}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsCounted')}</div><div class="value">${d.countedQty != null ? d.countedQty : d.totalApprovedQty}</div><div style="font-size:11px;opacity:.85;margin-top:2px">${d.totalApprovedQty} &minus; ${d.excessQty || 0}</div></div>
+    <div class="stat-card"><div class="label">${T('tsRemaining')}</div><div class="value">${d.remainingTarget}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsProgress')}</div><div class="value">${d.overallProgressPct}%</div></div>
+    <div class="stat-card"><div class="label">${T('tsTotalWf')}</div><div class="value">${d.totalWorkflows}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsCompletedWf')}</div><div class="value">${d.completedWorkflows}</div></div>
+    <div class="stat-card"><div class="label">${T('tsPendingWf')}</div><div class="value">${d.pendingWorkflows}</div></div>
   `;
 
   document.querySelector('#targetStatusTable tbody').innerHTML = d.statuses.map(s => {
@@ -5568,6 +5869,14 @@ let lastReportMeta = null;
 // every successful runReport() so "Prepared On" reflects the actual run
 // time, and reused as-is by printReport() so the printed copy matches
 // what's shown on screen.
+// LETTERHEAD DEPARTMENT (Oct 2026): shows the Section being reported (the Section
+// filter if one is picked, else a Staff user's own Section, else "All Sections")
+// instead of a hard-coded "Stores Department".
+function reportDeptText(sectionName) {
+  let sec = sectionName || '';
+  if (!sec && typeof SESSION !== 'undefined' && SESSION && SESSION.role === 'Staff' && typeof getSessionSectionId === 'function') sec = getSessionSectionId();
+  return `${T('lhDepartmentLabel')}: ${sec || T('lhAllSections')}`;
+}
 function updateReportLetterhead(def) {
   const staffSel = document.getElementById('repStaff');
   const staffName = (def.filters.includes('staff') && staffSel.value && staffSel.selectedOptions[0])
@@ -5575,7 +5884,6 @@ function updateReportLetterhead(def) {
   const sectionSel = document.getElementById('repSection');
   const sectionName = (def.filters.includes('section') && sectionSel.value) ? sectionSel.value : '';
   const metaParts = [];
-  if (sectionName) metaParts.push(`${T('section')}: ${sectionName}`);
   if (staffName) metaParts.push(`${T('staff')}: ${staffName}`);
   if (def.filters.includes('monthRange')) {
     const a = document.getElementById('repFromMonth').value, b = document.getElementById('repToMonth').value;
@@ -5585,7 +5893,7 @@ function updateReportLetterhead(def) {
 
   lastReportMeta = {
     company: T('lhCompanyName'),
-    dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`,
+    dept: reportDeptText(sectionName),
     meta: metaParts.join('  |  ')
   };
 
@@ -5963,7 +6271,7 @@ function printReport() {
   // runReport(), so the printed copy always matches what's on screen.
   // Falls back to a fresh company/department-only line in the unlikely
   // case Print is somehow reached before that ran.
-  const lh = lastReportMeta || { company: T('lhCompanyName'), dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`, meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
+  const lh = lastReportMeta || { company: T('lhCompanyName'), dept: reportDeptText(''), meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
   w.document.write(`<html><head><title>${title}</title><style>
     body{font-family:Arial,sans-serif;padding:20px;} h2{margin-bottom:4px;}
     .lhCompany{font-size:16px;font-weight:700;margin-bottom:2px;} .lhDept{font-size:13px;margin-bottom:2px;} .lhMeta{font-size:11px;color:#555;margin-bottom:10px;}
@@ -6015,17 +6323,27 @@ async function loadMastersView() {
     // fall through and render whatever MASTERS we already have, rather than
     // leaving the page blank on a transient network error
   }
+  MASTERS.staff = MASTERS.staff || []; MASTERS.workflows = MASTERS.workflows || [];
   document.querySelector('#staffTable tbody').innerHTML = MASTERS.staff.map(s => `
     <tr><td>${escapeHtml(s['Staff ID'])}</td><td>${escapeHtml(s['Staff Name'])}</td><td>${escapeHtml(s['Designation'])}</td><td>${escapeHtml(s['Section'])}</td><td>${escapeHtml(s['Status'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openStaffForm" data-id="${escapeHtml(s['Staff ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
+  // Phase 2 (Multi-Section): HR creates/edits Sections; a Section Manager only sees his own Section and edits Activities.
+  const isHRUser = SESSION.role === 'HR';
+  const asb = document.getElementById('addSectionBtn'); if (asb) asb.style.display = isHRUser ? '' : 'none';
+  const aab = document.getElementById('addActivityBtn'); if (aab) aab.style.display = isHRUser ? 'none' : '';
+  // HR's Master Data page is for Staff + Section only: hide the Activity and Workflow cards for HR.
+  ['activityTable', 'workflowTable'].forEach(id => {
+    const card = document.getElementById(id) && document.getElementById(id).closest('.card');
+    if (card) card.style.display = isHRUser ? 'none' : '';
+  });
   document.querySelector('#sectionTable tbody').innerHTML = (MASTERS.sections || []).map(s => `
     <tr><td>${escapeHtml(s['Section ID'])}</td><td>${escapeHtml(s['Section Name'])}</td>
-    <td><button class="btn btn-outline btn-sm" data-action="openSectionForm" data-id="${escapeHtml(s['Section ID'])}">${T('editBtn')}</button></td></tr>
+    <td>${isHRUser ? `<button class="btn btn-outline btn-sm" data-action="openSectionForm" data-id="${escapeHtml(s['Section ID'])}">${T('editBtn')}</button>` : ''}</td></tr>
   `).join('');
   document.querySelector('#activityTable tbody').innerHTML = (MASTERS.activities || []).map(a => `
     <tr><td>${escapeHtml(a['Activity ID'])}</td><td>${escapeHtml(a['Activity Code'])}</td><td>${escapeHtml(a['Activity Name'])}</td>
-    <td><button class="btn btn-outline btn-sm" data-action="openActivityForm" data-id="${escapeHtml(a['Activity ID'])}">${T('editBtn')}</button></td></tr>
+    <td>${isHRUser ? '' : `<button class="btn btn-outline btn-sm" data-action="openActivityForm" data-id="${escapeHtml(a['Activity ID'])}">${T('editBtn')}</button>`}</td></tr>
   `).join('');
   document.querySelector('#workflowTable tbody').innerHTML = MASTERS.workflows.map(w => `
     <tr><td>${escapeHtml(w['Activity Name'])}</td><td>${escapeHtml(w['Workflow Name'])}</td><td>${escapeHtml(w['KPI Name'])}</td><td>${escapeHtml(w['Unit'])}</td>
