@@ -704,6 +704,7 @@ main.content{
             <div><label for="addWfExpectedOutput">Expected Output (description only)</label><input type="text" id="addWfExpectedOutput"></div>
             <div><label for="addWfStatus">Status</label><select id="addWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-weight:600;"><input type="checkbox" id="addWfTeam"> Team workflow (Co-Staff basis) <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— tick if several staff do this job together; the Working Register will then show the Co-Staff checklist and the Weightage / Score is shared equally among them</span></label>
           <label style="display:block;margin:8px 0 4px;">Applicable Section(s) * <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— only staff of the ticked Section(s) will see this workflow in the Working Register</span></label>
           <div id="addWfSections" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;"></div>
           <button class="btn btn-brown" id="addWfSaveBtn" onclick="saveAddWorkflow()">Save Workflow</button>
@@ -712,7 +713,7 @@ main.content{
 
         <div class="card">
           <div class="table-wrap"><table id="editWfTable"><thead><tr>
-            <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th></th>
+            <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th>Team</th><th></th>
           </tr></thead><tbody></tbody></table></div>
         </div>
 
@@ -728,6 +729,9 @@ main.content{
               <select id="editWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
             </div>
             <div><label for="editWfSections" data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. Stores,Packing or All (Section names)"></div>
+            <div><label for="editWfTeam">Team workflow (Co-Staff basis)</label>
+              <select id="editWfTeam"><option value="No">No - Individual</option><option value="Yes">Yes - Team / Co-Staff</option></select>
+              <div id="editWfTeamNote" style="font-size:12px;color:var(--coffee-500);margin-top:4px;"></div></div>
           </div>
           <button class="btn btn-brown" onclick="saveWorkflowEdit()" data-i18n="saveChanges">Save Changes</button>
           <button class="btn btn-outline" onclick="closeWorkflowEdit()" data-i18n="cancelBtn">Cancel</button>
@@ -886,6 +890,7 @@ main.content{
 
         <div class="card">
           <div class="form-row">
+            <div><label for="hrSection">Section <span style="color:#c62828">*</span></label><select id="hrSection" onchange="hrSectionChanged()"></select></div>
             <div><label for="hrPeriod" data-i18n="periodLabel">Period Label</label><input type="text" id="hrPeriod" placeholder="e.g. Jul-2026"></div>
             <div><label for="hrFrom" data-i18n="from">From</label><input type="date" id="hrFrom"></div>
             <div><label for="hrTo" data-i18n="to">To</label><input type="date" id="hrTo"></div>
@@ -902,6 +907,7 @@ main.content{
             <div style="align-self:end;"><button class="btn btn-outline hr-edit-only" onclick="runBackupNow()" title="Take an extra spreadsheet backup right now, in addition to the automatic daily one">💽 Backup Now</button></div>
           </div>
           <p class="li-target-info" data-i18n="periodLabelInfo">Period Label tags Recognition, Memo and Manual Score records for this cycle (e.g. "Jul-2026"). Saving a Snapshot lets the Department Dashboard build a Monthly/Yearly trend.</p>
+          <p class="li-target-info"><b>HR Appraisal works on ONE Section at a time.</b> Select the Section first. Approve &amp; Lock / Re-open applies only to the selected Section - other Sections are not affected.</p>
           <p class="li-target-info">Once a period is <b>Approved &amp; Locked</b>, Save Snapshot will refuse to overwrite it - use Re-open for Revision first if it genuinely needs to change (reason required, fully audited).</p>
           <!-- GO-LIVE FIX (audit item 2, Sep 2026): staff still on the
                neutral Discipline/Policy/Behaviour auto-default because no
@@ -930,7 +936,9 @@ main.content{
           <button class="subtab-btn" data-subtab="hrMemoMgmt" onclick="setHrTab('hrMemoMgmt')" data-i18n="tabMemoMgmt">📄 Memo Management</button>
           <button class="subtab-btn hr-edit-only" data-subtab="hrManual" onclick="setHrTab('hrManual')" data-i18n="tabManualScores">✍️ Manual Scores</button>
           <button class="subtab-btn hr-edit-only" data-subtab="hrTraining" onclick="setHrTab('hrTraining')" data-i18n="tabTraining">🎓 Training</button>
+          <button class="subtab-btn" data-subtab="hrSpecialWork" onclick="setHrTab('hrSpecialWork')">⭐ Special Work</button>
           <button class="subtab-btn" data-subtab="hrSummary" onclick="setHrTab('hrSummary')" data-i18n="tabHrSummary">📋 HR Summary</button>
+          <button class="subtab-btn" data-subtab="hrGradeTrend" onclick="setHrTab('hrGradeTrend')">📅 Grade Trend</button>
           <button class="subtab-btn" data-subtab="hrDashboard" onclick="setHrTab('hrDashboard')" data-i18n="tabDeptDashboard">📈 Department Dashboard</button>
           <button class="subtab-btn" data-subtab="hrFormulaVerify" onclick="setHrTab('hrFormulaVerify')" data-i18n="formulaVerifyTitle">🔎 Formula Verification</button>
         </div>
@@ -964,6 +972,24 @@ main.content{
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="recogThisPeriod">Recognitions — This Period</h3>
             <div class="table-wrap"><table id="recogTable"><thead><tr><th data-i18n="staff">Staff</th><th data-i18n="type">Type</th><th data-i18n="bonus">Bonus</th><th data-i18n="reason">Reason</th><th></th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
+        <!-- SPECIAL WORK: Manager assigns + recommends marks, HR approves -->
+        <div class="subview" id="subview-hrSpecialWork">
+          <div class="card" id="swAssignCard">
+            <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)">Assign Special Work</h3>
+            <p class="li-target-info">Flow: Manager assigns → work completed → Manager recommends marks (1–5) → <b>HR approves</b> → marks are added to the staff's HR Final Score for this Period (max 10 Special Work marks per staff per Period).</p>
+            <div class="form-row">
+              <div><label for="swStaff">Staff</label><select id="swStaff"></select></div>
+              <div style="grid-column:span 2"><label for="swTitle">Work Title</label><input type="text" id="swTitle" placeholder="Required - e.g. Warehouse re-layout"></div>
+            </div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="swDesc">Description (optional)</label><input type="text" id="swDesc" placeholder="What exactly is to be done"></div></div>
+            <button class="btn btn-brown" onclick="assignSpecialWorkEntry()">Assign Work</button>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)">Special Work — This Period</h3>
+            <div class="table-wrap"><table id="swTable"><thead><tr><th>Staff</th><th>Work</th><th>Status</th><th>Marks</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table></div>
           </div>
         </div>
 
@@ -1092,6 +1118,28 @@ main.content{
         </div>
 
         <!-- DEPARTMENT DASHBOARD -->
+        <!-- GRADE TREND: last N saved months, grade-wise comparison -->
+        <div class="subview" id="subview-hrGradeTrend">
+          <div class="card">
+            <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)">Grade Trend - Last Months Comparison</h3>
+            <p class="li-target-info">Uses the <b>saved Snapshots</b> of the selected Section. Months without a saved Snapshot are not shown. Section is taken from the Section box above.</p>
+            <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+              <div><label for="gtMonths">Months</label><select id="gtMonths"><option value="3" selected>Last 3 months</option><option value="2">Last 2 months</option><option value="4">Last 4 months</option><option value="6">Last 6 months</option></select></div>
+              <button class="btn btn-brown" onclick="loadGradeTrend()">Show Report</button>
+              <button class="btn btn-outline" onclick="exportGradeTrendExcel()">Export Excel</button>
+              <button class="btn btn-outline" onclick="printGradeTrend()">🖨️ Print</button>
+            </div>
+          </div>
+          <div class="card" id="gtResult" style="display:none;">
+            <div id="gtNote" style="color:#8a6d1d;font-size:13px;margin-bottom:6px;"></div>
+            <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)">Grade-wise Head Count</h3>
+            <div class="table-wrap"><table id="gtCounts"><thead></thead><tbody></tbody></table></div>
+            <div id="gtHighlights" style="margin:10px 0;font-size:13px;line-height:1.6;"></div>
+            <h3 style="margin:10px 0 6px;font-size:14px;color:var(--coffee-700)">Staff-wise Score &amp; Grade</h3>
+            <div class="table-wrap"><table id="gtTable"><thead></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
         <div class="subview" id="subview-hrDashboard">
           <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="liveHrDashboard">Today's Live HR Dashboard</h3>
           <div class="grid grid-4" id="hrLiveStats"></div>
@@ -1196,6 +1244,37 @@ main.content{
           </div>
           <div id="repSummaryCards" style="display:none;"></div>
           <div class="table-wrap"><table id="reportTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- BULK UPLOAD (HR only): Sections, Staff, Activities, Workflows -->
+      <section class="view" id="view-bulkUpload">
+        <h2 class="view-title">Bulk Upload</h2>
+        <p class="view-sub">Upload many Sections, Staff, Activities or Workflows at once. <b>Order matters: Sections → Staff → Activities → Workflows.</b> First click <b>Check File</b> (nothing is saved), fix any red rows, then click <b>Save to Master</b>. Rows that already exist are skipped, so uploading the same file twice is safe.</p>
+        <div class="card">
+          <div class="form-row">
+            <div><label for="buKind">What are you uploading?</label>
+              <select id="buKind" onchange="buKindChanged()">
+                <option value="Section">1. Sections (Departments)</option>
+                <option value="Staff">2. Staff</option>
+                <option value="Activity">3. Activities</option>
+                <option value="Workflow">4. Workflows</option>
+              </select></div>
+            <div style="align-self:end;"><button class="btn btn-outline" onclick="buDownloadTemplate()">⬇ Download template (CSV)</button></div>
+            <div><label for="buFile">CSV file (or paste below)</label><input type="file" id="buFile" accept=".csv,.txt,.tsv" onchange="buFileChosen(this)"></div>
+          </div>
+          <p class="li-target-info" id="buColsHelp"></p>
+          <label for="buText">Or paste rows copied from Excel (first row = column names)</label>
+          <textarea id="buText" rows="6" style="width:100%;font-family:monospace;font-size:12px;" placeholder="Paste here..."></textarea>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline" id="buCheckBtn" onclick="buRun(false)">🔍 Check File</button>
+            <button class="btn btn-brown" id="buSaveBtn" onclick="buRun(true)" disabled>💾 Save to Master</button>
+          </div>
+        </div>
+        <div class="card" id="buResultCard" style="display:none;">
+          <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)" id="buSummary"></h3>
+          <div id="buWarnings" style="color:#8a6d1d;font-size:13px;margin-bottom:8px;"></div>
+          <div class="table-wrap"><table id="buTable"><thead><tr><th>Line</th><th>Result</th><th>Details</th></tr></thead><tbody></tbody></table></div>
         </div>
       </section>
 
@@ -1319,7 +1398,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbxJOi5m10nofsPmdl2yodxIrxpGgDiyQufySfuTNVDVORExeT5n-wW9l5-4xfuZHfi1/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw_mK87GjxuW0P_rBVftYcdnUo7R84ygDKsecsI3Id1gTuhpPdLrmXM9VE0H1G1r-mu8w/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -2366,7 +2445,8 @@ const NAV_ITEMS = [
   { id: 'hrAppraisal', label: '🎖️ HR Appraisal', labelTa: '🎖️ HR மதிப்பீடு', roles: ['Manager', 'HR'] },
   { id: 'reports', label: '📁 Reports', labelTa: '📁 அறிக்கைகள்', roles: ['Manager'] },
   { id: 'masters', label: '⚙️ Master Data', labelTa: '⚙️ மூல தரவு', roles: ['Manager', 'HR'] },
-  { id: 'loginAccounts', label: '🔑 Login Accounts', labelTa: '🔑 உள்நுழைவு கணக்குகள்', roles: ['HR'] }
+  { id: 'loginAccounts', label: '🔑 Login Accounts', labelTa: '🔑 உள்நுழைவு கணக்குகள்', roles: ['HR'] },
+  { id: 'bulkUpload', label: '⬆️ Bulk Upload', labelTa: '⬆️ மொத்தப் பதிவேற்றம்', roles: ['HR'] }
 ];
 
 function navLabel(n) { return (CURRENT_LANG === 'ta' && n.labelTa) ? n.labelTa : n.label; }
@@ -2427,6 +2507,7 @@ function showView(id) {
   if (id === 'scoreBreakdown') loadScoreBreakdownStaffList();
   if (id === 'masters') loadMastersView();
   if (id === 'loginAccounts') loadLoginAccounts();
+  if (id === 'bulkUpload') buInit();
   if (id === 'hrAppraisal') initHrAppraisal();
   if (id === 'reports') loadReportsView();
 }
@@ -2752,6 +2833,7 @@ document.addEventListener('click', (e) => {
   const id = btn.dataset.id;
   const decision = btn.dataset.decision;
   switch (action) {
+    case 'specialWorkAct': specialWorkAct(id, decision); break;
     case 'openEditDraft': openEditDraft(id); break;
     case 'submitDraft': submitDraft(id); break;
     case 'deleteDraft': deleteDraft(id); break;
@@ -3841,8 +3923,9 @@ async function loadWorkflowEditList() {
       <td>${escapeHtml(w['Expected Output'])}</td>
       <td><span class="badge ${safeStatusClass(w['Status'])}">${escapeHtml(w['Status'])}</span></td>
       <td>${escapeHtml(w['Sections'] || '')}</td>
+      <td>${(String(w['Team Workflow']||'').toLowerCase() === 'yes' || TEAM_WORKFLOW_IDS.indexOf(w['Workflow ID']) !== -1) ? '<span class="badge">Team</span>' : '—'}</td>
       <td><button class="btn btn-outline btn-sm" data-action="openWorkflowEdit" data-id="${escapeHtml(w['Workflow ID'])}">${T('editBtn')}</button></td>
-    </tr>`).join('') || `<tr><td colspan="10" class="empty">${T('noWorkflowsFound')}</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="11" class="empty">${T('noWorkflowsFound')}</td></tr>`;
 
   // Populate the Unit datalist with every distinct Unit already in use, so
   // Manager can pick an existing one (avoids accidental near-duplicate
@@ -3865,6 +3948,14 @@ function openWorkflowEdit(workflowId) {
   document.getElementById('editWfExpectedOutput').value = w['Expected Output'] || '';
   document.getElementById('editWfStatus').value = w['Status'] || 'Active';
   document.getElementById('editWfSections').value = w['Sections'] || '';
+  {
+    const isTeamNow = String(w['Team Workflow']||'').toLowerCase() === 'yes' || TEAM_WORKFLOW_IDS.indexOf(workflowId) !== -1;
+    const sel = document.getElementById('editWfTeam');
+    sel.value = isTeamNow ? 'Yes' : 'No';
+    document.getElementById('editWfTeamNote').textContent = isTeamNow
+      ? 'Once Team entries exist, this cannot be switched back to Individual (it would change past scores).'
+      : 'Tick Yes if several staff do this job together.';
+  }
   document.getElementById('editWfFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -4024,6 +4115,7 @@ function openAddWorkflow() {
     secs.map(sc => `<label><input type="checkbox" class="addWfSecChk" value="${escapeHtml(sc['Section Name'])}"${ownOnly ? ' checked disabled' : ''}> ${escapeHtml(sc['Section Name'])}</label>`).join('');
   ['addWfName','addWfKpi','addWfUnit','addWfTarget','addWfWeightage','addWfExpectedOutput'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('addWfStatus').value = 'Active';
+  document.getElementById('addWfTeam').checked = false;
   document.getElementById('addWfFormCard').style.display = 'block';
   document.getElementById('addWfFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -4057,6 +4149,7 @@ async function saveAddWorkflow() {
       weightage,
       expectedOutput: document.getElementById('addWfExpectedOutput').value,
       status: document.getElementById('addWfStatus').value,
+      teamWorkflow: document.getElementById('addWfTeam').checked ? 'Yes' : '',
       sections: all ? 'All' : picked.join(',')
     });
     toast('Workflow added');
@@ -4082,13 +4175,15 @@ async function saveWorkflowEdit() {
     'Weightage %': document.getElementById('editWfWeightage').value,
     'Expected Output': document.getElementById('editWfExpectedOutput').value,
     'Status': document.getElementById('editWfStatus').value,
-    'Sections': document.getElementById('editWfSections').value
+    'Sections': document.getElementById('editWfSections').value,
+    'Team Workflow': document.getElementById('editWfTeam').value
   };
   try {
     await callApi('updateWorkflow', { actorRole: SESSION.role, actorUserId: SESSION.userId, workflowId, fields });
     toast(T('saveChanges'));
     closeWorkflowEdit();
     loadWorkflowEditList();
+    loadMastersData().catch(() => {}); // refresh MASTERS so the Working Register sees the Team flag at once
   } catch (e) { toast(e.message); }
 }
 
@@ -4648,8 +4743,46 @@ function hrPeriodParams() {
   return {
     periodLabel: document.getElementById('hrPeriod').value.trim(),
     from: document.getElementById('hrFrom').value,
-    to: document.getElementById('hrTo').value
+    to: document.getElementById('hrTo').value,
+    section: (document.getElementById('hrSection') || {}).value || ''
   };
+}
+
+// SECTION-WISE APPRAISAL (Nov 2026): every HR Appraisal call needs ONE Section.
+function hrNeedSection(silent) {
+  const el = document.getElementById('hrSection');
+  if (el && el.value) return true;
+  if (!silent) toast('Please select a Section first (HR Appraisal works on one Section at a time).');
+  return false;
+}
+function hrFillStaffDropdowns() {
+  const sec = (document.getElementById('hrSection') || {}).value || '';
+  const key = s => String(s == null ? '' : s).trim().toLowerCase() || 'stores';
+  const staffOptions = MASTERS.staff.filter(s => s['Status'] !== 'Inactive' && sec && key(s['Section']) === key(sec))
+    .map(s => `<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])}</option>`).join('');
+  ['rcStaff', 'dmStaff', 'msStaff', 'trStaff', 'swStaff'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = staffOptions; });
+  const f = document.getElementById('trFilterStaff');
+  if (f) f.innerHTML = `<option value="">${T('allStaff')}</option>` + staffOptions;
+}
+function hrFillSectionDropdown() {
+  const el = document.getElementById('hrSection');
+  let names = (MASTERS.sections || []).map(x => String(x['Section Name']).trim()).filter(Boolean);
+  if (SESSION.role === 'Manager') {
+    const mine = String(getSessionSectionId() || '').trim() || 'Stores';
+    el.innerHTML = `<option value="${escapeHtml(mine)}">${escapeHtml(mine)}</option>`;
+    el.value = mine; el.disabled = true; // Manager: own Section only
+  } else {
+    if (names.indexOf('Stores') === -1) names.unshift('Stores');
+    el.innerHTML = '<option value="">-- Select Section --</option>' + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    el.disabled = false;
+  }
+}
+function hrSectionChanged() {
+  hrFillStaffDropdowns();
+  lastFullAppraisal = [];
+  const tb = document.querySelector('#hrScorecardTable tbody');
+  if (tb) tb.innerHTML = '';
+  if (hrNeedSection(true)) runFullAppraisal();
 }
 
 function initHrAppraisal() {
@@ -4661,11 +4794,8 @@ function initHrAppraisal() {
     document.getElementById('hrTo').valueAsDate = now;
     document.getElementById('dmMemoDate').valueAsDate = now;
 
-    const staffOptions = MASTERS.staff.filter(s => s['Status'] !== 'Inactive')
-      .map(s => `<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])}</option>`).join('');
-    document.getElementById('rcStaff').innerHTML = staffOptions;
-    document.getElementById('dmStaff').innerHTML = staffOptions;
-    document.getElementById('msStaff').innerHTML = staffOptions;
+    hrFillSectionDropdown();
+    hrFillStaffDropdowns();
 
     document.getElementById('rcType').innerHTML = RECOGNITION_TYPES.map(t =>
       `<option value="${escapeHtml(t.type)}">${escapeHtml(t.type)} (+${t.isRange ? t.range[0] + '..' + t.range[1] : t.bonus})</option>`).join('');
@@ -4678,15 +4808,12 @@ function initHrAppraisal() {
     // Training options come from MASTERS.trainingMaster (getMasters()) -
     // never hard-coded here, so an HR-added Training_Master row shows up
     // automatically after the next login/masters refresh.
-    document.getElementById('trStaff').innerHTML = staffOptions;
     document.getElementById('trTraining').innerHTML = (MASTERS.trainingMaster || [])
       .map(t => `<option value="${escapeHtml(t['Training ID'])}">${escapeHtml(t['Training Name'])} (${escapeHtml(t['Training ID'])})</option>`).join('')
       || `<option value="">${T('noActiveTrainings')}</option>`;
-    document.getElementById('trFilterStaff').innerHTML =
-      `<option value="">${T('allStaff')}</option>` + staffOptions;
     document.getElementById('trDate').valueAsDate = now;
   }
-  runFullAppraisal();
+  if (hrNeedSection(true)) runFullAppraisal();
 }
 
 function setHrTab(id) {
@@ -4696,6 +4823,8 @@ function setHrTab(id) {
   if (id === 'hrMemoMgmt') loadMemoManagementTable();
   if (id === 'hrManual') loadManualScoresTable();
   if (id === 'hrTraining') loadTrainingRegisterTable();
+  if (id === 'hrSpecialWork') loadSpecialWorkTable();
+  if (id === 'hrGradeTrend' && hrNeedSection(true)) loadGradeTrend();
   if (id === 'hrSummary') loadHrSummary();
   if (id === 'hrDashboard') { loadHrDashboard(); loadHrLiveDashboard(); }
   if (id === 'hrFormulaVerify') runFormulaVerification();
@@ -4708,6 +4837,7 @@ function setHrTab(id) {
 async function runFormulaVerification() {
   const badge = document.getElementById('fvOverallBadge');
   const tbody = document.querySelector('#fvTable tbody');
+  if (!hrNeedSection()) { badge.textContent = '-'; return; }
   badge.textContent = '...';
   try {
     const params = hrActorParams(hrPeriodParams());
@@ -4746,8 +4876,9 @@ function rcTypeChanged() {
 async function runFullAppraisal() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
+  if (!hrNeedSection()) return;
   try { lastFullAppraisal = await callApi('getFullAppraisal', p); } catch (e) { toast(e.message); return; }
-  showHrAttendanceGapWarning(p.from, p.to); // advisory only, never blocks or changes scores
+  showHrAttendanceGapWarning(p.from, p.to, p.section); // advisory only, never blocks or changes scores
   document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => a.hrPending ? `
     <tr>
       <td>${escapeHtml(a.staffName)}</td>
@@ -4773,13 +4904,13 @@ async function runFullAppraisal() {
     </tr>`).join('') || `<tr><td colspan="19" class="empty">${T('noActiveStaffData')}</td></tr>`;
 }
 
-async function showHrAttendanceGapWarning(from, to) {
+async function showHrAttendanceGapWarning(from, to, section) {
   const box = document.getElementById('hrAttGapWarning');
   if (!box) return;
   box.innerHTML = '';
   if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
   let d;
-  try { d = await callApi('getAttendanceGapReport', { from, to }); } catch (e) { return; } // advisory: fail silently
+  try { d = await callApi('getAttendanceGapReport', { from, to, section }); } catch (e) { return; } // advisory: fail silently (section = the Section chosen in HR Appraisal)
   const bad = (d.staff || []).filter(r => r.unmarkedDays > 0);
   if (!bad.length) return;
   const items = bad.map(r => `<li><strong>${escapeHtml(r.staffName)}</strong>: ${r.unmarkedDays} - ${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</li>`).join('');
@@ -4823,6 +4954,281 @@ async function addRecognitionEntry() {
     runFullAppraisal();
   } catch (e) { toast(e.message); }
 }
+
+/* ============================================================
+   SPECIAL WORK (Nov 2026) - Manager assigns/recommends, HR approves
+   ============================================================ */
+async function assignSpecialWorkEntry() {
+  const periodLabel = document.getElementById('hrPeriod').value.trim();
+  const staffId = document.getElementById('swStaff').value;
+  const title = document.getElementById('swTitle').value.trim();
+  if (!hrNeedSection()) return;
+  if (!periodLabel) { toast(T('setPeriodFirst')); return; }
+  if (!staffId) { toast('Select a staff'); return; }
+  if (!title) { toast('Work title is required'); return; }
+  try {
+    await callApi('assignSpecialWork', hrActorParams({ staffId, periodLabel, title, description: document.getElementById('swDesc').value.trim() }));
+    document.getElementById('swTitle').value = ''; document.getElementById('swDesc').value = '';
+    toast('Special work assigned');
+    loadSpecialWorkTable();
+  } catch (e) { toast(e.message); }
+}
+
+async function loadSpecialWorkTable() {
+  const periodLabel = document.getElementById('hrPeriod').value.trim();
+  const isHR = SESSION.role === 'HR', isMgr = SESSION.role === 'Manager';
+  document.getElementById('swAssignCard').style.display = (isHR || isMgr) ? '' : 'none';
+  if (!periodLabel) return;
+  let rows = [];
+  try { rows = await callApi('getSpecialWork', { periodLabel }); } catch (e) { toast(e.message); return; }
+  const sec = (document.getElementById('hrSection') || {}).value || '';
+  if (sec) rows = rows.filter(r => String(r['Section'] || 'Stores').trim().toLowerCase() === sec.trim().toLowerCase());
+  const btn = (id, dec, label, cls) => `<button class="btn ${cls || 'btn-outline'} btn-sm" data-action="specialWorkAct" data-id="${escapeHtml(id)}" data-decision="${dec}">${label}</button> `;
+  document.querySelector('#swTable tbody').innerHTML = rows.map(r => {
+    const st = r['Status'];
+    let acts = '';
+    if (isMgr && st === 'Assigned') acts += btn(r['Work ID'], 'recommend', 'Complete &amp; Recommend', 'btn-brown');
+    if (isHR && st === 'Recommended') acts += btn(r['Work ID'], 'approve', 'Approve', 'btn-brown') + btn(r['Work ID'], 'reject', 'Reject');
+    if ((isMgr || isHR) && (st === 'Assigned' || st === 'Recommended')) acts += btn(r['Work ID'], 'cancel', 'Cancel');
+    const marks = st === 'Approved' ? '+' + escapeHtml(r['HR Marks']) : (st === 'Recommended' ? escapeHtml(r['Recommended Marks']) + ' (proposed)' : '');
+    const notes = [r['Description'], r['Completion Note'] ? 'Done: ' + r['Completion Note'] : '', r['HR Remark'] ? 'HR: ' + r['HR Remark'] : ''].filter(Boolean).map(escapeHtml).join(' | ');
+    return `<tr><td>${escapeHtml(r['Staff Name'])}</td><td>${escapeHtml(r['Work Title'])}</td><td>${escapeHtml(st)}</td><td>${marks}</td><td>${notes}</td><td>${acts}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">None for this Period / Section</td></tr>';
+}
+
+async function specialWorkAct(id, decision) {
+  try {
+    if (decision === 'recommend') {
+      const marks = prompt('Marks to recommend (1-5):', '3'); if (marks === null) return;
+      const note = prompt('What was completed? (required)'); if (!note) return;
+      await callApi('recommendSpecialWork', hrActorParams({ workId: id, marks: Number(marks), completionNote: note }));
+      toast('Recommended - sent to HR for approval');
+    } else if (decision === 'approve') {
+      const marks = prompt('Approve marks (1-5). Leave as is to accept the Manager\'s recommendation:', '');
+      if (marks === null) return;
+      await callApi('decideSpecialWork', hrActorParams({ workId: id, decision: 'Approve', marks: marks === '' ? undefined : Number(marks), remark: '' }));
+      toast('Approved - marks added to Recognition'); runFullAppraisal();
+    } else if (decision === 'reject') {
+      const remark = prompt('Reason for rejecting (required):'); if (!remark) return;
+      await callApi('decideSpecialWork', hrActorParams({ workId: id, decision: 'Reject', remark }));
+      toast('Rejected');
+    } else if (decision === 'cancel') {
+      if (!confirm('Cancel this special work?')) return;
+      await callApi('cancelSpecialWork', hrActorParams({ workId: id }));
+      toast('Cancelled');
+    }
+    loadSpecialWorkTable();
+  } catch (e) { toast(e.message); }
+}
+
+/* ============================================================
+   BULK UPLOAD (HR) - Sections, Staff, Activities, Workflows
+   ============================================================ */
+const BU_COLUMNS = {
+  Section:  { cols: ['Section Name'], sample: [['Packing'], ['Curing'], ['Housekeeping']],
+              help: 'Required: Section Name.' },
+  Staff:    { cols: ['Staff ID', 'Staff Name', 'Designation', 'Section', 'Reporting Manager', 'Date of Joining', 'Status'],
+              sample: [['', 'Ravi Kumar', 'Packer', 'Packing', 'Suresh M', '2024-06-01', 'Active']],
+              help: 'Required: Staff Name, Section (must already exist). Staff ID optional (blank = auto EMP number). Date: YYYY-MM-DD or DD/MM/YYYY. Status: Active/Inactive.' },
+  Activity: { cols: ['Activity Code', 'Activity Name'], sample: [['PKG-HK', 'PKG - Housekeeping']],
+              help: 'Required: Activity Code and Activity Name (both must be new/unique).' },
+  Workflow: { cols: ['Activity Code', 'Workflow Name', 'KPI Name', 'Unit', 'Weightage %', 'Target', 'Sections', 'Expected Output', 'Status', 'Team Workflow'],
+              sample: [['PKG-HK', 'PKG - Daily Housekeeping', 'Areas cleaned', 'Nos', '20', '30', 'Packing', 'All areas cleaned daily', 'Active', '']],
+              help: 'Required: Activity Code (or Activity Name), Workflow Name, KPI Name, Unit, Weightage %, Sections (one or more Section names separated by comma inside quotes, or All). Target optional. Total Active Weightage of each Section must be 100.' }
+};
+let buRows = [];
+
+function buInit() { buKindChanged(); }
+function buKindChanged() {
+  const k = document.getElementById('buKind').value;
+  document.getElementById('buColsHelp').innerHTML = '<b>Columns:</b> ' + BU_COLUMNS[k].cols.join(' | ') + '<br>' + BU_COLUMNS[k].help;
+  document.getElementById('buSaveBtn').disabled = true;
+  document.getElementById('buResultCard').style.display = 'none';
+}
+function buCsvEsc(v) { v = String(v == null ? '' : v); return /[",\n\t]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function buDownloadTemplate() {
+  const k = document.getElementById('buKind').value, c = BU_COLUMNS[k];
+  const lines = [c.cols.map(buCsvEsc).join(',')].concat(c.sample.map(r => r.map(buCsvEsc).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'template-' + k.toLowerCase() + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+// Small CSV/TSV parser (quotes supported). Delimiter = tab if the header line has a tab, else comma.
+function buParse(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const d = first.indexOf('\t') !== -1 ? '\t' : ',';
+  const out = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === d) { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); out.push(row); row = []; cur = ''; }
+    else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); out.push(row); }
+  const rows = out.filter(r => r.some(c => String(c).trim() !== ''));
+  if (rows.length < 2) return [];
+  const heads = rows[0].map(h => String(h).trim());
+  return rows.slice(1).map(r => { const o = {}; heads.forEach((h, i) => { if (h) o[h] = r[i] == null ? '' : String(r[i]).trim(); }); return o; });
+}
+function buFileChosen(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { document.getElementById('buText').value = rd.result; document.getElementById('buSaveBtn').disabled = true; };
+  rd.readAsText(f);
+}
+async function buRun(commit) {
+  const kind = document.getElementById('buKind').value;
+  const rows = buParse(document.getElementById('buText').value);
+  if (!rows.length) { toast('No data rows found. First row must be the column names.'); return; }
+  if (commit && !confirm('Save ' + rows.length + ' row(s) to ' + kind + ' Master? (Existing rows are skipped.)')) return;
+  const cb = document.getElementById('buCheckBtn'), sb = document.getElementById('buSaveBtn');
+  cb.disabled = sb.disabled = true;
+  try {
+    const r = await callApi('bulkUploadMasters', { kind, rows, commit });
+    const sm = r.summary;
+    document.getElementById('buResultCard').style.display = '';
+    document.getElementById('buSummary').textContent = (r.committed ? '✅ SAVED - ' : 'Check result - ') +
+      sm.ok + ' to create, ' + sm.skipped + ' already exist (skipped), ' + sm.errors + ' error(s), of ' + sm.total + ' row(s)';
+    document.getElementById('buWarnings').innerHTML = (r.warnings || []).map(w => '⚠️ ' + escapeHtml(w)).join('<br>');
+    const col = { OK: '#2e7d32', SKIP: '#777', ERROR: '#c62828' };
+    document.querySelector('#buTable tbody').innerHTML = r.results.map(x =>
+      `<tr><td>${x.line}</td><td style="color:${col[x.status]};font-weight:600">${x.status}</td><td>${escapeHtml(x.message)}</td></tr>`).join('');
+    if (r.committed) { toast('Saved to ' + kind + ' Master'); document.getElementById('buText').value = ''; document.getElementById('buFile').value = ''; sb.disabled = true; }
+    else sb.disabled = !(sm.errors === 0 && sm.ok > 0);
+  } catch (e) { toast(e.message); sb.disabled = true; }
+  finally { cb.disabled = false; }
+}
+
+/* ============================================================
+   GRADE TREND REPORT (Nov 2026) - last N saved months, per Section
+   ============================================================ */
+let lastGradeTrend = null;
+async function loadGradeTrend() {
+  if (!hrNeedSection()) return;
+  try {
+    const d = await callApi('getGradeTrendReport', hrActorParams({ section: document.getElementById('hrSection').value, months: document.getElementById('gtMonths').value }));
+    lastGradeTrend = d;
+    document.getElementById('gtResult').style.display = '';
+    document.getElementById('gtNote').textContent = d.note || '';
+    if (!d.periods.length) { document.getElementById('gtNote').textContent = (d.note ? d.note + ' ' : '') + 'No completed-month Snapshots for this Section yet. Save Snapshot in HR Appraisal after the month ends.'; }
+    const gcls = g => ({ 'A+': '#1b5e20', 'A': '#2e7d32', 'B': '#1565c0', 'C': '#ef6c00', 'D': '#c62828' }[g] || '#555');
+    const gb = g => g ? `<b style="color:${gcls(g)}">${escapeHtml(g)}</b>` : '-';
+    document.querySelector('#gtCounts thead').innerHTML = '<tr><th>Month</th>' + d.gradeOrder.map(g => `<th>${escapeHtml(g)}</th>`).join('') + '<th>Total</th></tr>';
+    document.querySelector('#gtCounts tbody').innerHTML = d.gradeCounts.map(c =>
+      `<tr><td>${escapeHtml(c.period)}</td>${d.gradeOrder.map(g => `<td>${c[g] || 0}</td>`).join('')}<td>${c.total}</td></tr>`).join('');
+    const list = a => a.length ? a.map(escapeHtml).join(', ') : '-';
+    document.getElementById('gtHighlights').innerHTML =
+      `🏅 <b>Consistent top (A+/A every month):</b> ${list(d.highlights.consistentTop)}<br>` +
+      `📉 <b>Declining:</b> ${list(d.highlights.declining)}<br>` +
+      `⚠️ <b>Need attention (latest month C/D):</b> ${list(d.highlights.needAttention)}`;
+    document.querySelector('#gtTable thead').innerHTML = '<tr><th>Staff</th>' + d.periods.map(p => `<th>${escapeHtml(p)}</th>`).join('') + '<th>Average</th><th>Change</th><th>Trend</th></tr>';
+    const arrow = { Improving: '↑ Improving', Declining: '↓ Declining', Steady: '→ Steady' };
+    document.querySelector('#gtTable tbody').innerHTML = d.rows.map(r =>
+      `<tr><td>${escapeHtml(r.staffName)}<br><small style="color:#888">${escapeHtml(r.designation || '')}</small></td>` +
+      r.months.map(m => m ? `<td>${m.score} ${gb(m.grade)}${m.status && m.status !== 'Approved' ? '<br><small style="color:#999">' + escapeHtml(m.status) + '</small>' : ''}</td>` : '<td style="color:#bbb">-</td>').join('') +
+      `<td>${r.average} ${gb(r.averageGrade)}</td><td>${r.change === '' ? '-' : (r.change > 0 ? '+' : '') + r.change}</td><td>${escapeHtml(arrow[r.trend] || r.trend)}</td></tr>`).join('') || `<tr><td colspan="${d.periods.length + 4}" class="empty">No data</td></tr>`;
+  } catch (e) { toast(e.message); }
+}
+async function exportGradeTrendExcel() {
+  const d = lastGradeTrend; if (!d || !d.rows.length) { toast('Show the report first'); return; }
+  // One Excel row per staff: Section, Staff ID, Name, then Score+Grade for every saved month, then Average/Change/Trend.
+  const rows = d.rows.map(r => {
+    const o = { 'Section': d.section, 'Staff ID': r.staffId, 'Staff Name': r.staffName };
+    d.periods.forEach((p, i) => {
+      const m = r.months[i];
+      o[p + ' Score'] = m ? m.score : '';
+      o[p + ' Grade'] = m ? m.grade : '';
+    });
+    o['Average'] = r.average; o['Average Grade'] = r.averageGrade; o['Change'] = r.change; o['Trend'] = r.trend;
+    return o;
+  });
+  await exportXlsx(rows, 'grade-trend-' + d.section + '.xlsx');
+}
+
+/* ---------- Grade Trend: PRINTOUT (A4 landscape, with emoji) ----------
+   Builds a self-contained print page from the report already on screen (lastGradeTrend) and prints it from a hidden
+   iframe (no pop-up window, so pop-up blockers cannot stop it). Purely a view of the same data - nothing is recalculated
+   differently from the screen, and nothing is written to the Sheet. */
+function buildGradeTrendPrintHtml(d) {
+  const E = escapeHtml;
+  const cap = p => String(p || '').replace(/^[a-z]/, c => c.toUpperCase()); // backend labels are lower-case (e.g. "oct-2026")
+  const periods = d.periods.map(cap);
+  const order = d.gradeOrder || ['A+', 'A', 'B', 'C', 'D'];
+  const gcol = { 'A+': '#1b5e20', 'A': '#2e7d32', 'B': '#1565c0', 'C': '#ef6c00', 'D': '#c62828' };
+  const gemo = { 'A+': '🥇', 'A': '🥈', 'B': '🥉', 'C': '🙂', 'D': '⚠️' };
+  const temo = { Improving: '📈 Improving', Steady: '➡️ Steady', Declining: '📉 Declining' };
+  const gb = g => g ? `<span class="g" style="color:${gcol[g] || '#555'}">${E(g)}</span>` : '';
+  const hl = d.highlights || {};
+  const has = (arr, n) => (arr || []).indexOf(n) !== -1;
+  const list = a => (a && a.length) ? a.map(E).join(', ') : '–';
+  const now = new Date(), pad = n => String(n).padStart(2, '0');
+  const printed = pad(now.getDate()) + '-' + pad(now.getMonth() + 1) + '-' + now.getFullYear();
+  const spark = r => {
+    const W = 86, H = 24, pd = 3, n = periods.length, lo = 50, hi = 100;
+    const pts = r.months.map((m, i) => m ? [pd + (n > 1 ? i * (W - 2 * pd) / (n - 1) : (W - 2 * pd) / 2), H - pd - (Math.min(hi, Math.max(lo, Number(m.score) || 0)) - lo) / (hi - lo) * (H - 2 * pd)] : null).filter(Boolean);
+    const col = r.trend === 'Improving' ? '#2e7d32' : r.trend === 'Declining' ? '#c62828' : '#6d4c41';
+    const line = pts.length > 1 ? `<polyline fill="none" stroke="${col}" stroke-width="1.8" points="${pts.map(p => p.join(',')).join(' ')}"/>` : '';
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${line}${pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="2.4" fill="${col}"/>`).join('')}</svg>`;
+  };
+  const f1 = v => (v === '' || v == null || isNaN(Number(v))) ? '–' : Number(v).toFixed(1);
+  const chg = v => (v === '' || v == null) ? '–' : (v > 0 ? '+' : '') + Number(v).toFixed(1);
+  const counts = (d.gradeCounts || []).map(c => `<tr><td class="l">${E(cap(c.period))}</td>${order.map(g => `<td>${c[g] || '–'}</td>`).join('')}<td><b>${c.total}</b></td></tr>`).join('');
+  const body = d.rows.map((r, i) => `<tr class="${has(hl.needAttention, r.staffName) ? 'attn' : ''}"><td class="l">${i + 1}</td>
+    <td class="l">${has(hl.consistentTop, r.staffName) ? '🏅 ' : ''}${has(hl.needAttention, r.staffName) ? '⚠️ ' : ''}<b>${E(r.staffName)}</b><br><small>${E(r.designation || '')}</small></td>
+    ${r.months.map(m => m ? `<td>${f1(m.score)} ${gb(m.grade)}${m.status && m.status !== 'Approved' ? '<br><small>' + E(m.status) + '</small>' : ''}</td>` : '<td class="none">—</td>').join('')}
+    <td><b>${f1(r.average)}</b> ${gb(r.averageGrade)}</td><td>${chg(r.change)}</td><td class="l">${E(temo[r.trend] || r.trend || '–')}</td><td>${spark(r)}</td></tr>`).join('');
+  const css = `@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}
+  body{margin:0;color:#2b1b17;font:12.5px/1.3 "Nirmala UI","Segoe UI",Arial,"Noto Sans Tamil","Noto Color Emoji",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .hdr{display:flex;align-items:center;gap:12px;background:#3e2723;color:#fff;border-radius:10px;padding:9px 14px}.hdr .logo{font-size:28px;line-height:1}
+  .hdr h1{margin:0;font-size:17px}.hdr small{display:block;color:#f4efec;font-size:11.5px}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0 2px;font-size:12px}.meta b{color:#3e2723}
+  .note{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:4px 8px;font-size:11.5px;margin:4px 0 6px}
+  .grid{display:grid;grid-template-columns:1fr 1.5fr;gap:10px;margin-top:6px}h2{font-size:13px;margin:0 0 4px;color:#3e2723}
+  table{width:100%;border-collapse:collapse}th{background:#3e2723;color:#fff;padding:4px 7px;text-align:center;font-size:12px}
+  th.l,td.l{text-align:left}td{border-bottom:1px solid #e0d6d1;padding:3px 7px;text-align:center;font-variant-numeric:tabular-nums}
+  thead{display:table-header-group}tr{page-break-inside:avoid}tbody tr:nth-child(even) td{background:#faf7f5}
+  .hlb{border:1px solid #bcaaa4;border-radius:8px;padding:6px 10px;background:#f4efec}.hlb div{margin:2px 0}
+  .g{font-weight:800;margin-left:3px}small{color:#6d4c41}.none{color:#999}tr.attn td{background:#ffebee!important}
+  .legend{display:flex;gap:8px;margin-top:8px;font-size:11.5px;flex-wrap:wrap;align-items:center;page-break-inside:avoid}.legend span{border:1px solid #bcaaa4;border-radius:6px;padding:2px 7px}
+  .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:20px;text-align:center;font-size:12px;page-break-inside:avoid}.sign div{border-top:1px solid #2b1b17;padding-top:3px}
+  .foot{margin-top:8px;display:flex;justify-content:space-between;font-size:10.5px;color:#6d4c41}`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Grade Trend - ${E(d.section)}</title><style>${css}</style></head><body>
+  <div class="hdr"><div class="logo">☕</div><div><h1>Sri Narasu's Coffee Company Pvt Ltd</h1><small>Grade Trend Report · Grade முன்னேற்ற அறிக்கை</small></div></div>
+  <div class="meta"><span>🏬 Section: <b>${E(d.section)}</b></span><span>📅 Completed months: <b>${E(periods[0] || '–')}${periods.length > 1 ? ' to ' + E(periods[periods.length - 1]) : ''}</b></span><span>👥 Staff: <b>${d.rows.length}</b></span><span>🖨️ Printed: <b>${printed}</b></span></div>
+  <div class="note">ℹ️ Only COMPLETED months with a saved Snapshot are compared${(d.inProgressHidden && d.inProgressHidden.length) ? ' – running month (' + E(d.inProgressHidden.map(cap).join(', ')) + ') is not included' : ''}. · முடிந்த மாதங்கள் மட்டும்.${d.note && d.periods.length < 2 ? ' ' + E(d.note) : ''}</div>
+  <div class="grid"><div><h2>📊 Grade count by month · Grade எண்ணிக்கை</h2>
+    <table><thead><tr><th class="l">Month</th>${order.map(g => `<th>${gemo[g] || ''} ${E(g)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${counts}</tbody></table></div>
+    <div><h2>🔎 Highlights · முக்கிய குறிப்புகள்</h2><div class="hlb">
+      <div>🏅 <b>Consistent top (A+/A every month):</b> ${list(hl.consistentTop)}</div>
+      <div>📉 <b>Declining (change −2 or less):</b> ${list(hl.declining)}</div>
+      <div>⚠️ <b>Need attention (latest month C/D):</b> ${list(hl.needAttention)}</div></div></div></div>
+  <h2 style="margin-top:10px">👥 Staff-wise trend · ஊழியர் வாரியாக</h2>
+  <table><thead><tr><th class="l">#</th><th class="l">Staff</th>${periods.map(p => `<th>${E(p)}</th>`).join('')}<th>Average</th><th>Change</th><th>Trend</th><th>Mini chart</th></tr></thead><tbody>${body}</tbody></table>
+  <div class="legend"><b>Grade:</b><span>🥇 A+ · 90+</span><span>🥈 A · 80+</span><span>🥉 B · 70+</span><span>🙂 C · 60+</span><span>⚠️ D · below 60</span>
+    <b style="margin-left:10px">Trend:</b><span>📈 +2 or more</span><span>➡️ −2 to +2</span><span>📉 −2 or less</span><span>— no saved month</span></div>
+  <div class="sign"><div>Prepared by · HR</div><div>Reporting Manager · மேலாளர்</div><div>Approved by · Management</div></div>
+  <div class="foot"><span>🖨️ Computer-generated report</span><span>Based on saved monthly Snapshots</span></div></body></html>`;
+}
+function printGradeTrend() {
+  const d = lastGradeTrend;
+  if (!d || !d.rows || !d.rows.length) { toast('Show the report first'); return; }
+  const old = document.getElementById('gtPrintFrame'); if (old) old.remove();
+  const fr = document.createElement('iframe');
+  fr.id = 'gtPrintFrame';
+  fr.setAttribute('aria-hidden', 'true');
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  fr.onload = () => {
+    try { fr.contentWindow.focus(); fr.contentWindow.print(); }
+    catch (e) { toast('Could not open the print dialog: ' + e.message); }
+    setTimeout(() => { try { fr.remove(); } catch (e) { } }, 60000);
+  };
+  fr.srcdoc = buildGradeTrendPrintHtml(d);
+  document.body.appendChild(fr);
+}
+
 
 async function loadRecognitionsTable() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
@@ -5088,8 +5494,9 @@ async function runAutoHrPreparation() {
   const from = document.getElementById('hrFrom').value;
   const to = document.getElementById('hrTo').value;
   if (!periodLabel || !from || !to) { toast(T('setPeriodFirst')); return; }
+  if (!hrNeedSection()) return;
   try {
-    const rows = await callApi('getAutoHRAppraisal', hrActorParams({periodLabel, from, to}));
+    const rows = await callApi('getAutoHRAppraisal', hrActorParams({periodLabel, from, to, section: document.getElementById('hrSection').value}));
     const pending = rows.filter(r => r.autoReviewRequired).length;
     // Auto mode is deliberately preview-only: it never overwrites HR Manual Scores.
     // Run Appraisal will use the same source-derived values for staff without a manual row.
@@ -5201,6 +5608,7 @@ async function submitManualScoreEntry() {
 async function loadManualScoresTable() {
   const p = hrPeriodParams();
   if (!p.periodLabel) return;
+  if (!hrNeedSection(true)) return;
   // SPEED (Sep 2026): fetch the manual scores and the automatic Training scores
   // TOGETHER (was one after the other = two waits in a row).
   const _fullP = (p.from && p.to)
@@ -5443,6 +5851,7 @@ async function openTrainingDetails(staffId, fromOverride, toOverride, periodOver
 async function loadHrSummary() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) return;
+  if (!hrNeedSection(true)) return;
   let s;
   try { s = await callApi('getHRManagementSummary', p); } catch (e) { toast(e.message); return; }
   const row = (name, score, extra) => `<li><span>${escapeHtml(name)}</span><span class="tag">${fnum(score)}${extra || ''}</span></li>`;
@@ -5462,6 +5871,7 @@ async function loadHrSummary() {
 async function loadHrDashboard() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) return;
+  if (!hrNeedSection(true)) return;
   let d;
   try { d = await callApi('getHRDashboard', p); } catch (e) { toast(e.message); return; }
 
@@ -5549,8 +5959,9 @@ function renderHrReviewPending(list) {
 async function checkHrReviewPending() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
+  if (!hrNeedSection()) return;
   try {
-    const list = await callApi('getHRReviewPendingList', hrActorParams({ periodLabel }));
+    const list = await callApi('getHRReviewPendingList', hrActorParams({ periodLabel, section: document.getElementById('hrSection').value }));
     renderHrReviewPending(list);
   } catch (e) { toast(e.message); }
 }
@@ -5558,21 +5969,24 @@ async function checkHrReviewPending() {
 async function saveHrSnapshot() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
+  if (!hrNeedSection()) return;
   try {
     const r = await callApi('saveAppraisalSnapshot', hrActorParams(p));
-    toast(T('snapshotSavedFor') + ' ' + r.periodLabel + ' (' + r.staffCount + ' ' + T('staffLower') + ')');
+    toast(T('snapshotSavedFor') + ' ' + r.periodLabel + ' [' + r.section + '] (' + r.staffCount + ' ' + T('staffLower') + ')');
   } catch (e) { toast(e.message); }
 }
 
 async function lockHrSnapshot() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
-  if (!confirm('Approve and lock "' + periodLabel + '"? Once locked, Save Snapshot cannot overwrite it until it is re-opened.')) return;
+  if (!hrNeedSection()) return;
+  const section = document.getElementById('hrSection').value;
+  if (!confirm('Approve and lock "' + periodLabel + '" for Section "' + section + '"? Once locked, Save Snapshot cannot overwrite it until it is re-opened. Other Sections are not affected.')) return;
   try {
     const from = document.getElementById('hrFrom').value, to = document.getElementById('hrTo').value;
     let r;
     try {
-      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to }));
+      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, section }));
     } catch (e) {
       // Lock guard (Oct 2026): server blocks the lock while HR ratings / attendance are incomplete.
       if (!String(e.message || '').startsWith('LOCK_BLOCKED:')) throw e;
@@ -5580,7 +5994,7 @@ async function lockHrSnapshot() {
       const reason = prompt('Cannot lock "' + periodLabel + '" yet:\n' + details +
         '\n\nBest: Cancel, complete these, then lock again.\nTo lock anyway, type a reason (it is recorded in the Audit Log):');
       if (!reason || !reason.trim()) { toast('Lock cancelled - complete the pending items first.'); return; }
-      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, overrideReason: reason.trim() }));
+      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, section, overrideReason: reason.trim() }));
     }
     // GO-LIVE FIX (audit item 2, Sep 2026): "warning, not block" - the lock
     // already went through (never held up by this); pendingReview (if any)
@@ -5588,18 +6002,20 @@ async function lockHrSnapshot() {
     // moment of locking without a second call.
     renderHrReviewPending(r.pendingReview || []);
     const warn = (r.pendingReview && r.pendingReview.length) ? ' - ' + r.pendingReview.length + ' ' + T('lockedWithPendingReview') : '';
-    toast('Locked ' + r.periodLabel + ' (' + r.staffCount + ' staff) as Approved.' + warn);
+    toast('Locked ' + r.periodLabel + ' [' + section + '] (' + r.staffCount + ' staff) as Approved.' + warn);
   } catch (e) { toast(e.message); }
 }
 
 async function reopenHrSnapshot() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
-  const reason = prompt('Reason for re-opening the approved period "' + periodLabel + '" (required, will be audited):');
+  if (!hrNeedSection()) return;
+  const section = document.getElementById('hrSection').value;
+  const reason = prompt('Reason for re-opening the approved period "' + periodLabel + '" for Section "' + section + '" (required, will be audited):');
   if (!reason) return;
   try {
-    const r = await callApi('reopenAppraisalSnapshot', hrActorParams({ periodLabel, reason }));
-    toast('Re-opened ' + r.periodLabel + ' for revision.');
+    const r = await callApi('reopenAppraisalSnapshot', hrActorParams({ periodLabel, section, reason }));
+    toast('Re-opened ' + r.periodLabel + ' [' + section + '] for revision.');
   } catch (e) { toast(e.message); }
 }
 
