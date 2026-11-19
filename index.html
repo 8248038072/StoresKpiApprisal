@@ -3115,7 +3115,18 @@ function _drawPctBarChartNow(canvasId, dataObj, detail, fair) {
               if (fair && fair.idx && fair.idx[items[0].label] !== undefined) {
                 const nm = items[0].label, inf = (fair.info && fair.info[nm]) || {};
                 const out = ['Fair-share index: ' + fnum(fair.idx[nm]) + '%' + (fair.idx[nm] > 100 ? ' (chart capped at 100%)' : '')];
-                if (inf.kpiScore !== undefined) out.push('KPI score ' + fnum(inf.kpiScore) + ' / fair share ' + fnum(inf.fairMarks));
+                // Tooltip (Nov 2026): every line comes from the backend staffDetail that produced the Index, by mode.
+                // Older cached responses have no `mode` -> only Index + Rating are shown (never a mismatched KPI/fair-share line).
+                if (inf.mode === 'EQUAL_SPLIT') {
+                  out.push('Individual KPI score: ' + fnum(inf.kpiScore));
+                  out.push('Total team KPI score: ' + fnum(inf.teamKpiScore));
+                  out.push('Individual share: ' + fnum(inf.individualSharePct) + '%');
+                  out.push('Equal fair share: ' + fnum(inf.fairSharePct) + '% (1 of ' + inf.activeStaffCount + ' active staff)');
+                } else if (inf.mode === 'FIXED' || inf.mode === 'FALLBACK') {
+                  out.push('KPI score: ' + fnum(inf.kpiScore) + ' / fair-share marks ' + fnum(inf.fairMarks));
+                  out.push('Max score ' + fnum(inf.maxScore) + ' / ' + inf.activeStaffCount + ' active staff');
+                  if (inf.mode === 'FALLBACK') out.push('(No team comparison available - KPI-based index)');
+                }
                 if (fair.ratings && fair.ratings[nm]) out.push('Rating: ' + fair.ratings[nm]);
                 return out;
               }
